@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER}
+      BASIC_AUTH_PASS: ${BASIC_AUTH_PASS}
+      BLM_CLAIMS_BASE_URL: ${BLM_CLAIMS_BASE_URL}
+      BLM_CLAIMS_ACTIVE_LAYER: ${BLM_CLAIMS_ACTIVE_LAYER:-0}
+      BLM_CLAIMS_CLOSED_LAYER: ${BLM_CLAIMS_CLOSED_LAYER:-1}
+      UPLOADS_PATH: /uploads
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      APP_ENV: ${APP_ENV:-production}
+      POSTGRES_USER: ${POSTGRES_USER}
+    volumes:
+      - ./uploads:/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    expose:
+      - "8000"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8084:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:

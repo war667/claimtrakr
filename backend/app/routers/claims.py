@@ -1,0 +1,273 @@
+import json
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import text, select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth import verify_credentials
+from app.database import get_db
+from app.models.claims import Claim, ClaimEvent
+from app.schemas.claims import ClaimSchema, PaginatedClaims, ClaimEventSchema
+from app.utils.geo import parse_bbox
+
+logger = logging.getLogger(__name__)
+router = APIRouter(dependencies=[Depends(verify_credentials)])
+
+VALID_SORT_COLUMNS = {
+    "closed_dt", "serial_nr", "claimant_name", "county", "state",
+    "claim_type", "acres", "first_seen_at", "last_seen_at", "case_status",
+}
+
+
+def _build_where(
+    state=None, county=None, status=None, claim_type=None,
+    closed_within_days=None, disposition_cd=None, search=None,
+    bbox=None,
+):
+    conditions = ["1=1"]
+    params = {}
+
+    if state:
+        conditions.append("c.state = :state")
+        params["state"] = state
+    if county:
+        conditions.append("c.county ILIKE :county")
+        params["county"] = f"%{county}%"
+    if status:
+        conditions.append("c.case_status = :status")
+        params["status"] = status.upper()
+    if claim_type:
+        conditions.append("c.claim_type = :claim_type")
+        params["claim_type"] = claim_type
+    if closed_within_days:
+        conditions.append("c.closed_dt >= NOW() - INTERVAL ':days days'")
+        # Use direct substitution for interval (safe, it's an int)
+        conditions[-1] = f"c.closed_dt >= NOW() - INTERVAL '{int(closed_within_days)} days'"
+    if disposition_cd:
+        conditions.append("c.disposition_cd = :disposition_cd")
+        params["disposition_cd"] = disposition_cd
+    if search:
+        conditions.append("c.claimant_name ILIKE :search")
+        params["search"] = f"%{search}%"
+    if bbox:
+        parsed = parse_bbox(bbox)
+        if parsed:
+            conditions.append(
+                f"c.bbox && ST_MakeEnvelope({parsed[0]}, {parsed[1]}, {parsed[2]}, {parsed[3]}, 4326)"
+            )
+
+    return " AND ".join(conditions), params
+
+
+@router.get("", response_model=PaginatedClaims)
+async def list_claims(
+    state: Optional[str] = None,
+    county: Optional[str] = None,
+    status: Optional[str] = None,
+    claim_type: Optional[str] = None,
+    closed_within_days: Optional[int] = None,
+    disposition_cd: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),
+    sort_by: str = Query("closed_dt"),
+    sort_dir: str = Query("desc"),
+    db: AsyncSession = Depends(get_db),
+):
+    if sort_by not in VALID_SORT_COLUMNS:
+        sort_by = "closed_dt"
+    sort_dir = "DESC" if sort_dir.lower() == "desc" else "ASC"
+
+    where_clause, params = _build_where(
+        state=state, county=county, status=status, claim_type=claim_type,
+        closed_within_days=closed_within_days, disposition_cd=disposition_cd,
+        search=search,
+    )
+
+    count_sql = text(f"SELECT COUNT(*) FROM claims c WHERE {where_clause}")
+    count_result = await db.execute(count_sql, params)
+    total = count_result.scalar() or 0
+
+    offset = (page - 1) * page_size
+    data_sql = text(f"""
+        SELECT
+            c.id, c.serial_nr, c.source_id, c.claim_name, c.claim_type,
+            c.claimant_name, c.claimant_addr, c.state, c.county,
+            c.meridian, c.township, c.township_dir, c.range, c.range_dir,
+            c.section, c.aliquot, c.acres, c.case_status, c.disposition_cd,
+            c.disposition_desc, c.location_dt, c.filing_dt, c.closed_dt,
+            c.last_action_dt, c.blm_url, c.source_layer, c.geom_source,
+            c.geom_confidence, c.first_seen_at, c.last_seen_at, c.last_run_id,
+            c.prev_status, c.prev_disp_cd, c.prev_claimant,
+            c.is_duplicate, c.needs_review, c.raw_json
+        FROM claims c
+        WHERE {where_clause}
+        ORDER BY c.{sort_by} {sort_dir} NULLS LAST
+        LIMIT :limit OFFSET :offset
+    """)
+    params["limit"] = page_size
+    params["offset"] = offset
+    result = await db.execute(data_sql, params)
+    rows = result.fetchall()
+
+    items = []
+    for row in rows:
+        items.append(ClaimSchema(
+            id=row[0], serial_nr=row[1], source_id=row[2], claim_name=row[3],
+            claim_type=row[4], claimant_name=row[5], claimant_addr=row[6],
+            state=row[7], county=row[8], meridian=row[9], township=row[10],
+            township_dir=row[11], range_=row[12], range_dir=row[13],
+            section=row[14], aliquot=row[15], acres=row[16], case_status=row[17],
+            disposition_cd=row[18], disposition_desc=row[19], location_dt=row[20],
+            filing_dt=row[21], closed_dt=row[22], last_action_dt=row[23],
+            blm_url=row[24], source_layer=row[25], geom_source=row[26],
+            geom_confidence=row[27], first_seen_at=row[28], last_seen_at=row[29],
+            last_run_id=row[30], prev_status=row[31], prev_disp_cd=row[32],
+            prev_claimant=row[33], is_duplicate=row[34], needs_review=row[35],
+            raw_json=row[36],
+        ))
+
+    return PaginatedClaims(total=total, page=page, page_size=page_size, items=items)
+
+
+@router.get("/geojson")
+async def claims_geojson(
+    state: Optional[str] = None,
+    county: Optional[str] = None,
+    status: Optional[str] = None,
+    claim_type: Optional[str] = None,
+    closed_within_days: Optional[int] = None,
+    disposition_cd: Optional[str] = None,
+    search: Optional[str] = None,
+    bbox: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    where_clause, params = _build_where(
+        state=state, county=county, status=status, claim_type=claim_type,
+        closed_within_days=closed_within_days, disposition_cd=disposition_cd,
+        search=search, bbox=bbox,
+    )
+
+    sql = text(f"""
+        SELECT
+            c.serial_nr, c.claim_name, c.claim_type, c.claimant_name,
+            c.state, c.county, c.acres, c.case_status, c.disposition_cd,
+            c.disposition_desc, c.location_dt, c.closed_dt, c.blm_url,
+            c.geom_confidence, c.first_seen_at, c.last_seen_at,
+            ST_AsGeoJSON(c.geom) as geojson
+        FROM claims c
+        WHERE {where_clause}
+          AND c.geom IS NOT NULL
+        ORDER BY c.last_seen_at DESC
+        LIMIT 5000
+    """)
+    result = await db.execute(sql, params)
+    rows = result.fetchall()
+
+    features = []
+    for row in rows:
+        geojson_str = row[16]
+        if not geojson_str:
+            continue
+        try:
+            geometry = json.loads(geojson_str)
+        except Exception:
+            continue
+        features.append({
+            "type": "Feature",
+            "geometry": geometry,
+            "properties": {
+                "serial_nr": row[0],
+                "claim_name": row[1],
+                "claim_type": row[2],
+                "claimant_name": row[3],
+                "state": row[4],
+                "county": row[5],
+                "acres": float(row[6]) if row[6] is not None else None,
+                "case_status": row[7],
+                "disposition_cd": row[8],
+                "disposition_desc": row[9],
+                "location_dt": str(row[10]) if row[10] else None,
+                "closed_dt": str(row[11]) if row[11] else None,
+                "blm_url": row[12],
+                "geom_confidence": row[13],
+                "first_seen_at": str(row[14]) if row[14] else None,
+                "last_seen_at": str(row[15]) if row[15] else None,
+            },
+        })
+
+    return {"type": "FeatureCollection", "features": features}
+
+
+@router.get("/{serial_nr}/events", response_model=list)
+async def claim_events(
+    serial_nr: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ClaimEvent)
+        .where(ClaimEvent.serial_nr == serial_nr)
+        .order_by(ClaimEvent.detected_at.desc())
+    )
+    events = result.scalars().all()
+    return [ClaimEventSchema.model_validate(e) for e in events]
+
+
+@router.get("/{serial_nr}/raw")
+async def claim_raw(
+    serial_nr: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        text("""
+        SELECT raw_json, fetched_at FROM source_raw_records
+        WHERE serial_nr = :serial_nr
+        ORDER BY fetched_at DESC
+        LIMIT 1
+        """),
+        {"serial_nr": serial_nr},
+    )
+    row = result.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="No raw record found")
+    return {"raw_json": row[0], "fetched_at": row[1]}
+
+
+@router.get("/{serial_nr}", response_model=ClaimSchema)
+async def get_claim(
+    serial_nr: str,
+    db: AsyncSession = Depends(get_db),
+):
+    sql = text("""
+        SELECT
+            id, serial_nr, source_id, claim_name, claim_type,
+            claimant_name, claimant_addr, state, county,
+            meridian, township, township_dir, range, range_dir,
+            section, aliquot, acres, case_status, disposition_cd,
+            disposition_desc, location_dt, filing_dt, closed_dt,
+            last_action_dt, blm_url, source_layer, geom_source,
+            geom_confidence, first_seen_at, last_seen_at, last_run_id,
+            prev_status, prev_disp_cd, prev_claimant,
+            is_duplicate, needs_review, raw_json
+        FROM claims WHERE serial_nr = :serial_nr
+    """)
+    result = await db.execute(sql, {"serial_nr": serial_nr})
+    row = result.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    return ClaimSchema(
+        id=row[0], serial_nr=row[1], source_id=row[2], claim_name=row[3],
+        claim_type=row[4], claimant_name=row[5], claimant_addr=row[6],
+        state=row[7], county=row[8], meridian=row[9], township=row[10],
+        township_dir=row[11], range_=row[12], range_dir=row[13],
+        section=row[14], aliquot=row[15], acres=row[16], case_status=row[17],
+        disposition_cd=row[18], disposition_desc=row[19], location_dt=row[20],
+        filing_dt=row[21], closed_dt=row[22], last_action_dt=row[23],
+        blm_url=row[24], source_layer=row[25], geom_source=row[26],
+        geom_confidence=row[27], first_seen_at=row[28], last_seen_at=row[29],
+        last_run_id=row[30], prev_status=row[31], prev_disp_cd=row[32],
+        prev_claimant=row[33], is_duplicate=row[34], needs_review=row[35],
+        raw_json=row[36],
+    )
