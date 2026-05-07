@@ -2,6 +2,7 @@ import logging
 from datetime import date, datetime
 from typing import Any, Dict, Optional, Tuple
 
+import shapely
 from shapely.geometry import MultiPolygon, Polygon, shape
 from shapely.wkt import dumps as to_wkt
 
@@ -83,12 +84,8 @@ def _rings_to_multipolygon(geometry: Optional[Dict]) -> Optional[MultiPolygon]:
                 if poly.is_valid and not poly.is_empty:
                     polygons.append(poly)
             if polygons:
-                coords = [
-                    [list(map(list, p.exterior.coords))] +
-                    [list(map(list, i.coords)) for i in p.interiors]
-                    for p in polygons
-                ]
-                return shape({"type": "MultiPolygon", "coordinates": coords})
+                parts = [to_wkt(p, rounding_precision=6)[len("POLYGON "):] for p in polygons]
+                return shapely.from_wkt("MULTIPOLYGON (" + ", ".join(parts) + ")")
         except Exception as exc:
             logger.debug(f"Ring to polygon conversion failed: {exc}")
 
