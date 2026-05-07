@@ -41,10 +41,10 @@ INSERT INTO claims (
     :state, :county, :meridian, :township, :township_dir, :range, :range_dir, :section,
     :aliquot, :acres, :case_status, :disposition_cd, :disposition_desc,
     :location_dt, :filing_dt, :closed_dt, :last_action_dt, :blm_url, :source_layer,
-    CASE WHEN :geom_wkt IS NOT NULL THEN ST_GeomFromText(:geom_wkt, 4326) ELSE NULL END,
+    CASE WHEN CAST(:geom_wkt AS TEXT) IS NOT NULL THEN ST_GeomFromText(CAST(:geom_wkt AS TEXT), 4326) ELSE NULL END,
     :geom_source, :geom_confidence,
-    CASE WHEN :geom_wkt IS NOT NULL
-         THEN ST_Envelope(ST_GeomFromText(:geom_wkt, 4326))
+    CASE WHEN CAST(:geom_wkt AS TEXT) IS NOT NULL
+         THEN ST_Envelope(ST_GeomFromText(CAST(:geom_wkt AS TEXT), 4326))
          ELSE NULL END,
     NOW(), NOW(), :last_run_id, CAST(:raw_json AS jsonb)
 )

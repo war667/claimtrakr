@@ -83,7 +83,12 @@ def _rings_to_multipolygon(geometry: Optional[Dict]) -> Optional[MultiPolygon]:
                 if poly.is_valid and not poly.is_empty:
                     polygons.append(poly)
             if polygons:
-                return MultiPolygon(polygons)
+                coords = [
+                    [list(map(list, p.exterior.coords))] +
+                    [list(map(list, i.coords)) for i in p.interiors]
+                    for p in polygons
+                ]
+                return shape({"type": "MultiPolygon", "coordinates": coords})
         except Exception as exc:
             logger.debug(f"Ring to polygon conversion failed: {exc}")
 
