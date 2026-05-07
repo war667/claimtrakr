@@ -25,7 +25,7 @@ router = APIRouter(dependencies=[Depends(verify_credentials)])
 
 @router.get("/status", response_model=IngestionStatusSchema)
 async def get_ingestion_status(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(DataSource).order_by(DataSource.id))
+    result = await db.execute(select(DataSource).where(DataSource.is_active == True).order_by(DataSource.id))
     sources = result.scalars().all()
 
     statuses = []
