@@ -79,12 +79,10 @@ export default function FilterPanel({ filters, onChange, onApply, onReset }) {
               checked={(filters.claim_types || []).includes(ct)}
               onChange={(e) => {
                 const current = filters.claim_types || [];
-                onChange({
-                  ...filters,
-                  claim_type: e.target.checked
-                    ? ct
-                    : current.filter((x) => x !== ct)[0] || undefined,
-                });
+                const updated = e.target.checked
+                  ? [...current, ct]
+                  : current.filter((x) => x !== ct);
+                onChange({ ...filters, claim_types: updated.length ? updated : undefined });
               }}
             />
             {ct.replace(/_/g, ' ')}

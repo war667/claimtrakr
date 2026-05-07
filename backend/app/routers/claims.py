@@ -39,8 +39,15 @@ def _build_where(
         conditions.append("c.case_status = :status")
         params["status"] = status.upper()
     if claim_type:
-        conditions.append("c.claim_type = :claim_type")
-        params["claim_type"] = claim_type
+        types = [t.strip() for t in claim_type.split(",") if t.strip()]
+        if len(types) == 1:
+            conditions.append("c.claim_type = :claim_type")
+            params["claim_type"] = types[0]
+        elif len(types) > 1:
+            placeholders = ", ".join(f":ct{i}" for i in range(len(types)))
+            conditions.append(f"c.claim_type IN ({placeholders})")
+            for i, t in enumerate(types):
+                params[f"ct{i}"] = t
     if closed_within_days:
         conditions.append("c.closed_dt >= NOW() - INTERVAL ':days days'")
         # Use direct substitution for interval (safe, it's an int)

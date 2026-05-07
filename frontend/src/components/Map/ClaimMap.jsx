@@ -63,7 +63,7 @@ export default function ClaimMap({ filters, onFeatureClick }) {
   const queryParams = {
     ...(filters.state ? { state: filters.state } : {}),
     ...(filters.status ? { status: filters.status } : {}),
-    ...(filters.claim_type ? { claim_type: filters.claim_type } : {}),
+    ...(filters.claim_types?.length ? { claim_type: filters.claim_types.join(',') } : {}),
     ...(filters.county ? { county: filters.county } : {}),
     ...(filters.closed_within_days ? { closed_within_days: filters.closed_within_days } : {}),
   };
