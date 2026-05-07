@@ -29,7 +29,7 @@ const TH_STYLE = {
 
 export default function ClaimsTable({ filters, targetSerialNrs = [], onRowClick, onExport }) {
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState('closed_dt');
+  const [sortBy, setSortBy] = useState('last_seen_at');
   const [sortDir, setSortDir] = useState('desc');
   const PAGE_SIZE = 100;
 
@@ -104,7 +104,7 @@ export default function ClaimsTable({ filters, targetSerialNrs = [], onRowClick,
                 ['state', 'State'],
                 ['claim_type', 'Type'],
                 ['case_status', 'Status'],
-                ['closed_dt', 'Closed Date'],
+                ['last_seen_at', 'Last Seen'],
                 ['acres', 'Acres'],
               ].map(([col, label]) => (
                 <th key={col} style={TH_STYLE} onClick={() => handleSort(col)}>
@@ -134,7 +134,7 @@ export default function ClaimsTable({ filters, targetSerialNrs = [], onRowClick,
                 <td style={COL_STYLE}>
                   <StatusBadge status={claim.case_status} closedDt={claim.closed_dt} />
                 </td>
-                <td style={COL_STYLE}>{claim.closed_dt || '—'}</td>
+                <td style={COL_STYLE}>{claim.last_seen_at ? claim.last_seen_at.slice(0, 10) : '—'}</td>
                 <td style={COL_STYLE}>
                   {claim.acres ? Number(claim.acres).toFixed(1) : '—'}
                 </td>
