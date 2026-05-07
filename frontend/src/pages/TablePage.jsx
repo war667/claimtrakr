@@ -84,7 +84,7 @@ export default function TablePage() {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => { if (v != null) params.append(k, v); });
     const authStr = btoa(`${import.meta.env.VITE_AUTH_USER || 'admin'}:${import.meta.env.VITE_AUTH_PASS || 'changeme'}`);
-    const url = `${import.meta.env.VITE_API_URL || ''}/api/v1/exports/claims.csv?${params}`;
+    const url = `/api/v1/exports/claims.csv?${params}`;
     // Build a link with auth — open in new tab, browser will handle basic auth prompt
     window.open(url, '_blank');
   };

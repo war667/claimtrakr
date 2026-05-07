@@ -48,7 +48,7 @@ async def fetch_all_features(
     """
     states = state_filter or ["UT", "NV"]
     state_list = ", ".join(f"'{s}'" for s in states)
-    where_clause = f"ADMIN_ST IN ({state_list})"
+    where_clause = f"ADMIN_STATE IN ({state_list})"
 
     query_url = f"{base_url}/{layer_index}/query"
     all_features: List[Dict[str, Any]] = []

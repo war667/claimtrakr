@@ -9,11 +9,15 @@ logger = logging.getLogger(__name__)
 
 CLAIM_TYPE_MAP = {
     "LODE": "lode",
+    "LODE CLAIM": "lode",
     "PLACER": "placer",
+    "PLACER CLAIM": "placer",
     "MILL SITE": "mill_site",
+    "MILL SITE CLAIM": "mill_site",
     "MILL_SITE": "mill_site",
     "TUNNEL": "tunnel_site",
     "TUNNEL SITE": "tunnel_site",
+    "TUNNEL SITE CLAIM": "tunnel_site",
 }
 
 
@@ -107,12 +111,12 @@ def normalize_feature(
         attrs = feature.get("attributes") or feature.get("properties") or {}
         geometry_raw = feature.get("geometry")
 
-        serial_nr = attrs.get("CASE_SERIAL_NR") or attrs.get("serial_nr")
+        serial_nr = attrs.get("CASE_SERIAL_NR") or attrs.get("CSE_NR") or attrs.get("serial_nr")
         if not serial_nr:
-            return None, "Missing CASE_SERIAL_NR"
+            return None, "Missing serial_nr"
         serial_nr = str(serial_nr).strip()
 
-        raw_acres = attrs.get("GIS_ACRES") or attrs.get("acres")
+        raw_acres = attrs.get("GIS_ACRES") or attrs.get("RCRD_ACRS") or attrs.get("acres")
         try:
             acres = float(raw_acres) if raw_acres is not None else None
         except (ValueError, TypeError):
@@ -138,11 +142,11 @@ def normalize_feature(
         normalized = {
             "serial_nr": serial_nr,
             "source_id": source_id,
-            "claim_name": attrs.get("CASE_NM") or attrs.get("claim_name"),
-            "claim_type": _map_claim_type(attrs.get("CASE_TYPE") or attrs.get("claim_type")),
+            "claim_name": attrs.get("CASE_NM") or attrs.get("CSE_NAME") or attrs.get("claim_name"),
+            "claim_type": _map_claim_type(attrs.get("CASE_TYPE") or attrs.get("BLM_PROD") or attrs.get("claim_type")),
             "claimant_name": attrs.get("CLAIMANT_NM") or attrs.get("claimant_name"),
             "claimant_addr": attrs.get("CLAIMANT_ADDR") or attrs.get("claimant_addr"),
-            "state": attrs.get("ADMIN_ST") or attrs.get("state"),
+            "state": attrs.get("ADMIN_ST") or attrs.get("ADMIN_STATE") or attrs.get("state"),
             "county": attrs.get("COUNTY_NM") or attrs.get("county"),
             "meridian": attrs.get("MERIDIAN") or attrs.get("meridian"),
             "township": attrs.get("TOWNSHIP") or attrs.get("township"),
@@ -152,7 +156,7 @@ def normalize_feature(
             "section": attrs.get("SECTION") or attrs.get("section"),
             "aliquot": attrs.get("ALIQUOT") or attrs.get("aliquot"),
             "acres": acres,
-            "case_status": _map_case_status(attrs.get("CASE_STATUS") or attrs.get("case_status")),
+            "case_status": _map_case_status(attrs.get("CASE_STATUS") or attrs.get("CSE_DISP") or attrs.get("case_status")),
             "disposition_cd": attrs.get("DISP_CD") or attrs.get("disposition_cd"),
             "disposition_desc": attrs.get("DISP_DESC") or attrs.get("disposition_desc"),
             "location_dt": _epoch_ms_to_date(attrs.get("LOCATION_DT") or attrs.get("location_dt")),

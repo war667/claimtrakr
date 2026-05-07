@@ -46,7 +46,7 @@ INSERT INTO claims (
     CASE WHEN :geom_wkt IS NOT NULL
          THEN ST_Envelope(ST_GeomFromText(:geom_wkt, 4326))
          ELSE NULL END,
-    NOW(), NOW(), :last_run_id, :raw_json::jsonb
+    NOW(), NOW(), :last_run_id, CAST(:raw_json AS jsonb)
 )
 ON CONFLICT (serial_nr) DO UPDATE SET
     source_id = EXCLUDED.source_id,

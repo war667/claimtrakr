@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 echo "Waiting for database..."
-while ! pg_isready -h db -U $POSTGRES_USER -q; do
+until pg_isready -h db -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q; do
   sleep 1
 done
 

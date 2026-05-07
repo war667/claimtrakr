@@ -282,11 +282,11 @@ def upgrade() -> None:
     op.execute("""
     INSERT INTO data_sources (source_key, display_name, source_type, base_url, layer_index, state_filter, is_active, phase) VALUES
         ('blm_active', 'BLM MLRS Active Mining Claims', 'arcgis_rest',
-         'https://gis.blm.gov/arcgis/rest/services/lands/BLM_Natl_MLRS_Mining_Claims/MapServer',
+         'https://gis.blm.gov/nlsdb/rest/services/Mining_Claims/MiningClaims/MapServer',
          0, ARRAY['UT','NV'], true, 1),
         ('blm_closed', 'BLM MLRS Closed Mining Claims', 'arcgis_rest',
-         'https://gis.blm.gov/arcgis/rest/services/lands/BLM_Natl_MLRS_Mining_Claims/MapServer',
-         1, ARRAY['UT','NV'], true, 1),
+         'https://gis.blm.gov/nlsdb/rest/services/Mining_Claims/MiningClaims/MapServer',
+         0, ARRAY['UT','NV'], true, 1),
         ('manual_upload', 'Manual CSV / GeoJSON Upload', 'csv_upload',
          NULL, NULL, NULL, true, 1);
     """)
