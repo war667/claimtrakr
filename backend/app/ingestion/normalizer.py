@@ -137,9 +137,11 @@ def normalize_feature(
                 geom_confidence = "none"
                 geom_wkt = None
 
-        blm_url = (
-            f"https://glorecords.blm.gov/details/patent/default.aspx?serial={serial_nr}"
-        )
+        sf_id = attrs.get("SF_ID")
+        if sf_id:
+            blm_url = f"https://mlrs.blm.gov/result/detail/MCDetail?id={sf_id}"
+        else:
+            blm_url = f"https://mlrs.blm.gov/result/detail/MCDetail?serial={serial_nr}"
 
         normalized = {
             "serial_nr": serial_nr,
