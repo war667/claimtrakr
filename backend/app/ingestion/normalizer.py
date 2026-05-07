@@ -137,11 +137,11 @@ def normalize_feature(
                 geom_confidence = "none"
                 geom_wkt = None
 
-        sf_id = attrs.get("SF_ID")
-        if sf_id:
-            blm_url = f"https://mlrs.blm.gov/result/detail/MCDetail?id={sf_id}"
+        if geom is not None:
+            c = geom.centroid
+            blm_url = f"https://mlrs.blm.gov/s/research-map#15,{c.y:.6f},{c.x:.6f}"
         else:
-            blm_url = f"https://mlrs.blm.gov/result/detail/MCDetail?serial={serial_nr}"
+            blm_url = "https://mlrs.blm.gov/s/research-map"
 
         normalized = {
             "serial_nr": serial_nr,
