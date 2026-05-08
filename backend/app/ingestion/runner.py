@@ -192,6 +192,11 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                 }
                 logger.info(f"Run {run_id}: existing_map loaded {len(existing_map)} claims")
 
+                _diag_new_claims = 0
+                _diag_status_changes = 0
+                _diag_claimant_changes = 0
+                _diag_disp_changes = 0
+
                 for feature in features:
                     normalized, err = normalize_feature(
                         feature,
@@ -228,10 +233,13 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                         )
                         session.add(event)
                         changes_detected += 1
+                        _diag_new_claims += 1
                     else:
                         new_status = str(normalized["case_status"]).strip() if normalized.get("case_status") else None
                         old_status = str(existing["case_status"]).strip() if existing.get("case_status") else None
                         if old_status and new_status and old_status != new_status:
+                            if _diag_status_changes < 3:
+                                logger.info(f"[diag] status_changed {serial_nr}: DB={repr(old_status)} API={repr(new_status)}")
                             session.add(ClaimEvent(
                                 serial_nr=serial_nr,
                                 run_id=run_id,
@@ -241,10 +249,13 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                                 new_value=new_status,
                             ))
                             changes_detected += 1
+                            _diag_status_changes += 1
 
                         new_claimant = str(normalized["claimant_name"]).strip() if normalized.get("claimant_name") else None
                         old_claimant = str(existing["claimant_name"]).strip() if existing.get("claimant_name") else None
                         if old_claimant and new_claimant and old_claimant != new_claimant:
+                            if _diag_claimant_changes < 3:
+                                logger.info(f"[diag] claimant_changed {serial_nr}: DB={repr(old_claimant)} API={repr(new_claimant)}")
                             session.add(ClaimEvent(
                                 serial_nr=serial_nr,
                                 run_id=run_id,
@@ -253,10 +264,13 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                                 new_value=new_claimant,
                             ))
                             changes_detected += 1
+                            _diag_claimant_changes += 1
 
                         new_disp = str(normalized["disposition_cd"]).strip() if normalized.get("disposition_cd") is not None else None
                         old_disp = str(existing["disposition_cd"]).strip() if existing.get("disposition_cd") is not None else None
                         if old_disp and new_disp and old_disp != new_disp:
+                            if _diag_disp_changes < 3:
+                                logger.info(f"[diag] disp_changed {serial_nr}: DB={repr(old_disp)} API={repr(new_disp)}")
                             session.add(ClaimEvent(
                                 serial_nr=serial_nr,
                                 run_id=run_id,
@@ -265,6 +279,7 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                                 new_value=new_disp,
                             ))
                             changes_detected += 1
+                            _diag_disp_changes += 1
 
                     # Upsert claim
                     try:
@@ -296,6 +311,11 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                     # Publish live progress every 1000 records via separate session
                     if records_upserted % 1000 == 0 and records_upserted > 0:
                         await _flush_progress(run_id, records_fetched, records_upserted, changes_detected)
+
+                logger.info(
+                    f"Run {run_id} change breakdown: new={_diag_new_claims} "
+                    f"status={_diag_status_changes} claimant={_diag_claimant_changes} disp={_diag_disp_changes}"
+                )
 
                 # Only detect removed records if the fetch completed without errors
                 if fetch_errors == 0:
