@@ -25,7 +25,7 @@ LOG_FILE = "logs/nginx/access.log"
 DEFAULT_EXCLUDE = {"159.26.99.77"}
 
 
-def parse_log(path, exclude_ips):
+def parse_log(path, exclude_ips, since=None):
     visitors = defaultdict(lambda: {"count": 0, "last_seen_raw": None, "last_seen": "", "ua": "", "pages": set()})
     try:
         with open(path) as f:
@@ -42,6 +42,8 @@ def parse_log(path, exclude_ips):
                     ts_dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
                 except Exception:
                     ts_dt = datetime.min.replace(tzinfo=timezone.utc)
+                if since and ts_dt < since:
+                    continue
                 if not v["last_seen_raw"] or ts_dt > v["last_seen_raw"]:
                     v["last_seen_raw"] = ts_dt
                     v["last_seen"] = to_mountain(timestamp)
@@ -104,12 +106,13 @@ def main():
     if args.exclude:
         exclude.update(args.exclude.split(","))
 
-    print(f"Watching {LOG_FILE} (excluding: {', '.join(exclude)}) ...")
+    since = datetime.now(timezone.utc)
+    print(f"Watching {LOG_FILE} from {to_mountain(since.isoformat())} (excluding: {', '.join(exclude)}) ...")
     time.sleep(1)
 
     try:
         while True:
-            visitors = parse_log(LOG_FILE, exclude)
+            visitors = parse_log(LOG_FILE, exclude, since=since)
             render(visitors, args.interval)
             time.sleep(args.interval)
     except KeyboardInterrupt:
