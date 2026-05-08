@@ -49,13 +49,13 @@ function FilterBar({ filters, onChange, onReset }) {
         </select>
       </div>
       <div>
-        <label style={labelStyle}>Search Claimant</label>
+        <label style={labelStyle}>Search</label>
         <input
           type="text"
           value={filters.search || ''}
           onChange={(e) => onChange({ ...filters, search: e.target.value || undefined })}
-          placeholder="Fuzzy search..."
-          style={{ ...selectStyle, width: '160px' }}
+          placeholder="Serial #, claimant, name..."
+          style={{ ...selectStyle, width: '190px' }}
         />
       </div>
       <button onClick={onReset} style={{

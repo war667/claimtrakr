@@ -69,7 +69,7 @@ def _build_where(
         conditions.append("c.disposition_cd = :disposition_cd")
         params["disposition_cd"] = disposition_cd
     if search:
-        conditions.append("c.claimant_name ILIKE :search")
+        conditions.append("(c.claimant_name ILIKE :search OR c.serial_nr ILIKE :search OR c.claim_name ILIKE :search)")
         params["search"] = f"%{search}%"
     if bbox:
         parsed = parse_bbox(bbox)
