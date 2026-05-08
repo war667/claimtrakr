@@ -82,14 +82,18 @@ def render(visitors, interval):
     print(header)
     print("  " + "-" * (col_ip + col_count + col_last + col_ua + col_pages + 12))
 
-    for ip, data in sorted_v:
+    for i, (ip, data) in enumerate(sorted_v):
         pages = ", ".join(sorted(data["pages"])[:3])
         if len(data["pages"]) > 3:
             pages += f" +{len(data['pages'])-3}"
-        print(
+        line = (
             f"  {ip:<{col_ip}} {data['count']:>{col_count}}  {data['last_seen']:<{col_last}}"
             f"  {data['ua']:<{col_ua}}  {pages:<{col_pages}}"
         )
+        if i == 0:
+            print(f"\033[93m{line}\033[0m")
+        else:
+            print(line)
 
     print()
     total = sum(v["count"] for v in visitors.values())
