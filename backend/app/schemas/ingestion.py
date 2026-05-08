@@ -25,6 +25,7 @@ class IngestionRunSchema(BaseModel):
 
     id: int
     source_id: Optional[int] = None
+    source_name: Optional[str] = None
     triggered_by: Optional[str] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None

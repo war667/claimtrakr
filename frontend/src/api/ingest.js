@@ -22,3 +22,6 @@ export const uploadFile = (formData) =>
   uploadClient.post('/api/v1/ingest/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);
+
+export const cleanupRuns = () =>
+  client.post('/api/v1/ingest/runs/cleanup').then((r) => r.data);

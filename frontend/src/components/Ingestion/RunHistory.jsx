@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchIngestionRuns, fetchIngestionRun } from '../../api/ingest';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { fetchIngestionRuns, fetchIngestionRun, cleanupRuns } from '../../api/ingest';
 import { INGESTION_STATUS_COLORS } from '../../constants';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 
@@ -37,7 +37,7 @@ function RunRow({ run }) {
         onMouseLeave={(e) => (e.currentTarget.style.background = '')}
       >
         <td style={TD}>{run.id}</td>
-        <td style={TD}>{run.source_id}</td>
+        <td style={{ ...TD, color: '#ffffff' }}>{run.source_name || `Source ${run.source_id}`}</td>
         <td style={TD}>{run.triggered_by || '—'}</td>
         <td style={TD}>{run.started_at ? format(parseISO(run.started_at), 'MMM d HH:mm') : '—'}</td>
         <td style={TD}>{duration != null ? `${duration}s` : '—'}</td>
@@ -52,6 +52,15 @@ function RunRow({ run }) {
       {expanded && (
         <tr>
           <td colSpan={10} style={{ padding: '0 16px 12px', background: '#080f1e' }}>
+            {run.error_summary && (
+              <div style={{
+                fontSize: '12px', padding: '6px 10px', marginTop: '8px',
+                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                borderRadius: '4px', color: '#fca5a5', marginBottom: '6px',
+              }}>
+                {run.error_summary}
+              </div>
+            )}
             {!detail ? (
               <div style={{ fontSize: '12px', color: '#4b6079', padding: '8px 0' }}>Loading...</div>
             ) : detail.errors?.length === 0 ? (
@@ -97,11 +106,21 @@ const TH = {
 
 export default function RunHistory() {
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('');
+  const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['ingestionRuns', page],
-    queryFn: () => fetchIngestionRuns({ page, page_size: 50 }),
+    queryKey: ['ingestionRuns', page, statusFilter],
+    queryFn: () => fetchIngestionRuns({ page, page_size: 50, status: statusFilter || undefined }),
     refetchInterval: 10_000,
+  });
+
+  const cleanupMutation = useMutation({
+    mutationFn: cleanupRuns,
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['ingestionRuns'] });
+      alert(`Done: ${result.stuck_fixed} stuck runs fixed, ${result.old_runs_deleted} old runs removed.`);
+    },
   });
 
   if (isLoading) return (
@@ -113,6 +132,43 @@ export default function RunHistory() {
 
   return (
     <div>
+      {/* Toolbar */}
+      <div style={{
+        display: 'flex', gap: '10px', alignItems: 'center', padding: '10px 16px',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        background: '#0f2039',
+      }}>
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          style={{
+            padding: '4px 8px', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '6px', fontSize: '12px', color: '#ffffff',
+          }}
+        >
+          <option value="">All statuses</option>
+          <option value="success">Success</option>
+          <option value="partial">Partial</option>
+          <option value="error">Error</option>
+          <option value="running">Running</option>
+        </select>
+        <span style={{ fontSize: '12px', color: '#4b6079' }}>
+          {total} run{total !== 1 ? 's' : ''}
+        </span>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={() => cleanupMutation.mutate()}
+          disabled={cleanupMutation.isPending}
+          style={{
+            background: '#0d1f35', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '6px', padding: '4px 12px', fontSize: '12px',
+            cursor: 'pointer', color: '#94a3b8',
+          }}
+        >
+          {cleanupMutation.isPending ? 'Cleaning...' : '🧹 Clean Up Stale Runs'}
+        </button>
+      </div>
+
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -126,7 +182,7 @@ export default function RunHistory() {
             {runs.length === 0 ? (
               <tr>
                 <td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: '#4b6079', fontSize: '13px' }}>
-                  No ingestion runs yet. Click "Run All Sources" or "Run Now" on a source card.
+                  No runs match the current filter.
                 </td>
               </tr>
             ) : (

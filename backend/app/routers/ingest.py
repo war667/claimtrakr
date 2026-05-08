@@ -80,6 +80,7 @@ async def list_runs(
     page: int = 1,
     page_size: int = 50,
     source_key: Optional[str] = None,
+    status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     where = "1=1"
@@ -87,6 +88,9 @@ async def list_runs(
     if source_key:
         where += " AND ds.source_key = :source_key"
         params["source_key"] = source_key
+    if status:
+        where += " AND ir.status = :status"
+        params["status"] = status
 
     count_sql = text(f"""
         SELECT COUNT(*) FROM ingestion_runs ir
@@ -101,9 +105,9 @@ async def list_runs(
     params["offset"] = offset
 
     data_sql = text(f"""
-        SELECT ir.id, ir.source_id, ir.triggered_by, ir.started_at, ir.finished_at,
-               ir.status, ir.records_fetched, ir.records_upserted, ir.records_errored,
-               ir.changes_detected, ir.error_summary, ir.metadata
+        SELECT ir.id, ir.source_id, ds.display_name, ir.triggered_by, ir.started_at,
+               ir.finished_at, ir.status, ir.records_fetched, ir.records_upserted,
+               ir.records_errored, ir.changes_detected, ir.error_summary, ir.metadata
         FROM ingestion_runs ir
         JOIN data_sources ds ON ds.id = ir.source_id
         WHERE {where}
@@ -115,10 +119,11 @@ async def list_runs(
 
     items = [
         IngestionRunSchema(
-            id=r[0], source_id=r[1], triggered_by=r[2], started_at=r[3],
-            finished_at=r[4], status=r[5], records_fetched=r[6] or 0,
-            records_upserted=r[7] or 0, records_errored=r[8] or 0,
-            changes_detected=r[9] or 0, error_summary=r[10], metadata_=r[11],
+            id=r[0], source_id=r[1], source_name=r[2], triggered_by=r[3],
+            started_at=r[4], finished_at=r[5], status=r[6],
+            records_fetched=r[7] or 0, records_upserted=r[8] or 0,
+            records_errored=r[9] or 0, changes_detected=r[10] or 0,
+            error_summary=r[11], metadata_=r[12],
         )
         for r in rows
     ]
@@ -147,6 +152,42 @@ async def get_run(run_id: int, db: AsyncSession = Depends(get_db)):
         error_summary=run.error_summary, metadata_=run.metadata_,
         errors=[IngestionErrorSchema.model_validate(e) for e in errors],
     )
+
+
+@router.post("/runs/cleanup", status_code=200)
+async def cleanup_runs(db: AsyncSession = Depends(get_db)):
+    """Mark stuck 'running' runs as errored, delete old error/partial runs beyond last 5 per source."""
+    # Fix stuck runs (running for more than 2 hours)
+    stuck_result = await db.execute(text("""
+        UPDATE ingestion_runs
+        SET status = 'error',
+            finished_at = NOW(),
+            error_summary = 'Run abandoned — app restarted or timed out'
+        WHERE status = 'running'
+          AND started_at < NOW() - INTERVAL '2 hours'
+        RETURNING id
+    """))
+    stuck_fixed = len(stuck_result.fetchall())
+
+    # Delete old error/partial runs, keeping the 5 most recent per source
+    deleted_result = await db.execute(text("""
+        DELETE FROM ingestion_runs
+        WHERE id IN (
+            SELECT id FROM (
+                SELECT id, ROW_NUMBER() OVER (
+                    PARTITION BY source_id, status ORDER BY started_at DESC
+                ) AS rn
+                FROM ingestion_runs
+                WHERE status IN ('error', 'partial')
+            ) ranked
+            WHERE rn > 5
+        )
+        RETURNING id
+    """))
+    deleted = len(deleted_result.fetchall())
+
+    await db.commit()
+    return {"stuck_fixed": stuck_fixed, "old_runs_deleted": deleted}
 
 
 async def _bg_run_all():
