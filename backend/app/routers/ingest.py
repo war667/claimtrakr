@@ -157,34 +157,40 @@ async def get_run(run_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/runs/cleanup", status_code=200)
 async def cleanup_runs(db: AsyncSession = Depends(get_db)):
     """Mark stuck 'running' runs as errored, delete old error/partial runs beyond last 5 per source."""
-    # Fix stuck runs (running for more than 2 hours)
+    # Fix stuck runs (running for more than 1 hour)
     stuck_result = await db.execute(text("""
         UPDATE ingestion_runs
         SET status = 'error',
             finished_at = NOW(),
             error_summary = 'Run abandoned — app restarted or timed out'
         WHERE status = 'running'
-          AND started_at < NOW() - INTERVAL '2 hours'
+          AND started_at < NOW() - INTERVAL '1 hour'
         RETURNING id
     """))
     stuck_fixed = len(stuck_result.fetchall())
 
-    # Delete old error/partial runs, keeping the 5 most recent per source
-    deleted_result = await db.execute(text("""
-        DELETE FROM ingestion_runs
-        WHERE id IN (
-            SELECT id FROM (
-                SELECT id, ROW_NUMBER() OVER (
-                    PARTITION BY source_id, status ORDER BY started_at DESC
-                ) AS rn
-                FROM ingestion_runs
-                WHERE status IN ('error', 'partial')
-            ) ranked
-            WHERE rn > 5
-        )
-        RETURNING id
+    # Identify old error/partial/running runs to delete, keeping 5 most recent per source
+    to_delete_result = await db.execute(text("""
+        SELECT id FROM (
+            SELECT id, ROW_NUMBER() OVER (
+                PARTITION BY source_id ORDER BY started_at DESC
+            ) AS rn
+            FROM ingestion_runs
+            WHERE status IN ('error', 'partial', 'running')
+        ) ranked
+        WHERE rn > 5
     """))
-    deleted = len(deleted_result.fetchall())
+    run_ids = [r[0] for r in to_delete_result.fetchall()]
+
+    deleted = 0
+    if run_ids:
+        placeholders = ", ".join(str(i) for i in run_ids)
+        # Delete raw records first (no cascade on this FK)
+        await db.execute(text(f"DELETE FROM source_raw_records WHERE run_id IN ({placeholders})"))
+        # ingestion_errors has ON DELETE CASCADE but delete explicitly to be safe
+        await db.execute(text(f"DELETE FROM ingestion_errors WHERE run_id IN ({placeholders})"))
+        del_result = await db.execute(text(f"DELETE FROM ingestion_runs WHERE id IN ({placeholders}) RETURNING id"))
+        deleted = len(del_result.fetchall())
 
     await db.commit()
     return {"stuck_fixed": stuck_fixed, "old_runs_deleted": deleted}
