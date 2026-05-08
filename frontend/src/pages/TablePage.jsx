@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { fetchTargets } from '../api/targets';
 import ClaimsTable from '../components/Claims/ClaimsTable';
 import ClaimDetailPanel from '../components/Claims/ClaimDetailPanel';
@@ -84,7 +85,14 @@ const selectStyle = {
 };
 
 export default function TablePage() {
-  const [filters, setFilters] = useState({});
+  const [searchParams] = useSearchParams();
+  const [filters, setFilters] = useState(() => {
+    const f = {};
+    if (searchParams.get('status')) f.status = searchParams.get('status');
+    if (searchParams.get('closed_within_days')) f.closed_within_days = parseInt(searchParams.get('closed_within_days'));
+    if (searchParams.get('state')) f.state = searchParams.get('state');
+    return f;
+  });
   const [selectedClaim, setSelectedClaim] = useState(null);
 
   const { data: targetsData } = useQuery({

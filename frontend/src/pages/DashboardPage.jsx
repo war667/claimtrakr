@@ -7,18 +7,25 @@ import useIsMobile from '../hooks/useIsMobile';
 import { format, parseISO } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
-function StatCard({ icon, label, value, sublabel, empty, green }) {
+function StatCard({ icon, label, value, sublabel, empty, green, onClick }) {
   return (
-    <div style={{
-      background: '#0f2039',
-      border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: '12px',
-      padding: '16px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '4px',
-      opacity: empty ? 0.5 : 1,
-    }}>
+    <div
+      onClick={onClick}
+      style={{
+        background: '#0f2039',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '12px',
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+        opacity: empty ? 0.5 : 1,
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'border-color 0.15s, background 0.15s',
+      }}
+      onMouseEnter={(e) => { if (onClick) e.currentTarget.style.borderColor = 'rgba(37,99,235,0.5)'; }}
+      onMouseLeave={(e) => { if (onClick) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+    >
       <div style={{ fontSize: '22px', lineHeight: 1 }}>{icon}</div>
       <div style={{
         fontSize: '1.9rem',
@@ -102,12 +109,12 @@ export default function DashboardPage() {
         gap: '12px',
         marginBottom: '24px',
       }}>
-        <StatCard icon="📊" label="Total Claims" value={stats?.total_claims?.toLocaleString()} empty={isEmpty} />
-        <StatCard icon="✅" label="Active Claims" value={stats?.active_claims?.toLocaleString()} empty={isEmpty} green />
-        <StatCard icon="🔒" label="Closed Claims" value={stats?.closed_claims?.toLocaleString()} empty={isEmpty} />
-        <StatCard icon="📅" label="Closed Last 30d" value={stats?.closed_last_30_days?.toLocaleString()} empty={isEmpty} />
-        <StatCard icon="🎯" label="Active Targets" value={stats?.active_targets?.toLocaleString()} empty={false} green />
-        <StatCard icon="🏕" label="Pending Field Check" value={stats?.targets_pending_field_check?.toLocaleString()} empty={false} />
+        <StatCard icon="📊" label="Total Claims" value={stats?.total_claims?.toLocaleString()} empty={isEmpty} onClick={() => navigate('/table')} />
+        <StatCard icon="✅" label="Active Claims" value={stats?.active_claims?.toLocaleString()} empty={isEmpty} green onClick={() => navigate('/table?status=ACTIVE')} />
+        <StatCard icon="🔒" label="Closed Claims" value={stats?.closed_claims?.toLocaleString()} empty={isEmpty} onClick={() => navigate('/table?status=CLOSED')} />
+        <StatCard icon="📅" label="Closed Last 30d" value={stats?.closed_last_30_days?.toLocaleString()} empty={isEmpty} onClick={() => navigate('/table?status=CLOSED&closed_within_days=30')} />
+        <StatCard icon="🎯" label="Active Targets" value={stats?.active_targets?.toLocaleString()} empty={false} green onClick={() => navigate('/targets')} />
+        <StatCard icon="🏕" label="Pending Field Check" value={stats?.targets_pending_field_check?.toLocaleString()} empty={false} onClick={() => navigate('/targets?workflow_status=needs_field_check')} />
       </div>
 
       {/* Ingestion Health */}

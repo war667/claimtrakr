@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { WORKFLOW_STATUSES } from '../constants';
 import TargetList from '../components/Targets/TargetList';
 
 export default function TargetsPage() {
-  const [filters, setFilters] = useState({});
+  const [searchParams] = useSearchParams();
+  const [filters, setFilters] = useState(() => {
+    const f = {};
+    if (searchParams.get('workflow_status')) f.workflow_status = searchParams.get('workflow_status');
+    if (searchParams.get('state')) f.state = searchParams.get('state');
+    return f;
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
