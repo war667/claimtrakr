@@ -200,9 +200,9 @@ async def _bg_run_all():
         logger.error(f"Background run_all_sources failed: {exc}", exc_info=True)
 
 
-async def _bg_run_source(source_key: str):
+async def _bg_run_source(source_key: str, run_id: int):
     try:
-        await run_ingestion(source_key, triggered_by="api")
+        await run_ingestion(source_key, triggered_by="api", run_id=run_id)
     except Exception as exc:
         logger.error(f"Background run_ingestion({source_key}) failed: {exc}", exc_info=True)
 
@@ -226,8 +226,14 @@ async def trigger_source(
     if not source:
         raise HTTPException(status_code=404, detail=f"Source '{source_key}' not found")
 
-    background_tasks.add_task(_bg_run_source, source_key)
-    return {"status": "accepted", "source_key": source_key, "message": "Ingestion started"}
+    # Pre-create run record so we can return the ID immediately
+    run = IngestionRun(source_id=source.id, triggered_by="api", status="running")
+    db.add(run)
+    await db.commit()
+    await db.refresh(run)
+
+    background_tasks.add_task(_bg_run_source, source_key, run.id)
+    return {"status": "accepted", "source_key": source_key, "run_id": run.id, "message": "Ingestion started"}
 
 
 @router.post("/upload", response_model=UploadResult)

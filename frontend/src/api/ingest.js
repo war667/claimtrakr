@@ -18,6 +18,9 @@ export const triggerIngestionAll = () =>
 export const triggerIngestionSource = (sourceKey) =>
   client.post(`/api/v1/ingest/trigger/${sourceKey}`).then((r) => r.data);
 
+export const fetchIngestionRunById = (runId) =>
+  client.get(`/api/v1/ingest/runs/${runId}`).then((r) => r.data);
+
 export const uploadFile = (formData) =>
   uploadClient.post('/api/v1/ingest/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

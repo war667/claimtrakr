@@ -107,7 +107,20 @@ async def _log_error(
     await session.flush()
 
 
-async def run_ingestion(source_key: str, triggered_by: str = "scheduler") -> int:
+async def _flush_progress(run_id: int, fetched: int, upserted: int, changes: int) -> None:
+    """Write live progress to the run record via a separate committed session."""
+    try:
+        async with AsyncSessionLocal() as s:
+            await s.execute(
+                text("UPDATE ingestion_runs SET records_fetched = :f, records_upserted = :u, changes_detected = :c WHERE id = :id"),
+                {"f": fetched, "u": upserted, "c": changes, "id": run_id},
+            )
+            await s.commit()
+    except Exception as exc:
+        logger.warning(f"Progress flush failed for run {run_id}: {exc}")
+
+
+async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id: Optional[int] = None) -> int:
     """Run ingestion for a single source. Returns run_id."""
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -117,10 +130,15 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler") -> int
         if not source:
             raise ValueError(f"Unknown source_key: {source_key}")
 
-        run = IngestionRun(source_id=source.id, triggered_by=triggered_by, status="running")
-        session.add(run)
-        await session.flush()
-        run_id = run.id
+        if run_id:
+            # Use pre-created run record from trigger endpoint
+            run_result = await session.execute(select(IngestionRun).where(IngestionRun.id == run_id))
+            run = run_result.scalar_one()
+        else:
+            run = IngestionRun(source_id=source.id, triggered_by=triggered_by, status="running")
+            session.add(run)
+            await session.flush()
+            run_id = run.id
         run_start_time = datetime.now(timezone.utc)
         logger.info(f"Starting ingestion run {run_id} for {source_key}")
 
@@ -276,6 +294,10 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler") -> int
                     # Flush periodically to avoid huge transaction
                     if records_upserted % 500 == 0:
                         await session.flush()
+
+                    # Publish live progress every 1000 records via separate session
+                    if records_upserted % 1000 == 0 and records_upserted > 0:
+                        await _flush_progress(run_id, records_fetched, records_upserted, changes_detected)
 
                 # Only detect removed records if the fetch completed without errors
                 if fetch_errors == 0:
