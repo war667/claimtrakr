@@ -162,10 +162,14 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler") -> int
 
                 records_fetched = len(features)
 
-                # Get existing serial_nrs for change detection
+                # Get existing claims for change detection, scoped by state.
+                # Cannot filter by source_id because the upsert overwrites it on every run,
+                # causing all records to appear as new_claim events on subsequent runs.
+                state_placeholders = ", ".join(f":st{i}" for i in range(len(state_filter)))
+                state_params = {f"st{i}": s for i, s in enumerate(state_filter)}
                 existing_result = await session.execute(
-                    text("SELECT serial_nr, case_status, claimant_name, disposition_cd FROM claims WHERE source_id = :sid"),
-                    {"sid": source.id},
+                    text(f"SELECT serial_nr, case_status, claimant_name, disposition_cd FROM claims WHERE state IN ({state_placeholders})"),
+                    state_params,
                 )
                 existing_map = {
                     row[0]: {"case_status": row[1], "claimant_name": row[2], "disposition_cd": row[3]}
@@ -276,11 +280,11 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler") -> int
                 # Only detect removed records if the fetch completed without errors
                 if fetch_errors == 0:
                     removed_result = await session.execute(
-                        text("""
+                        text(f"""
                         SELECT serial_nr FROM claims
-                        WHERE source_id = :sid AND last_seen_at < :run_start
+                        WHERE state IN ({state_placeholders}) AND last_seen_at < :run_start
                         """),
-                        {"sid": source.id, "run_start": run_start_time},
+                        {**state_params, "run_start": run_start_time},
                     )
                     for (removed_serial,) in removed_result.fetchall():
                         session.add(ClaimEvent(
