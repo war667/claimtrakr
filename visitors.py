@@ -69,26 +69,26 @@ def render(visitors, interval):
 
     sorted_v = sorted(visitors.items(), key=lambda x: x[1]["last_seen_raw"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
 
-    col_ua    = 40
     col_ip    = 18
     col_count = 7
     col_last  = 18
+    col_ua    = 40
     col_pages = 30
 
     header = (
-        f"  {'User Agent':<{col_ua}}  {'IP':<{col_ip}} {'Visits':>{col_count}}  {'Last Seen':<{col_last}}"
-        f"  {'Top Pages':<{col_pages}}"
+        f"  {'IP':<{col_ip}} {'Visits':>{col_count}}  {'Last Seen':<{col_last}}"
+        f"  {'User Agent':<{col_ua}}  {'Top Pages':<{col_pages}}"
     )
     print(header)
-    print("  " + "-" * (col_ua + col_ip + col_count + col_last + col_pages + 12))
+    print("  " + "-" * (col_ip + col_count + col_last + col_ua + col_pages + 12))
 
     for ip, data in sorted_v:
         pages = ", ".join(sorted(data["pages"])[:3])
         if len(data["pages"]) > 3:
             pages += f" +{len(data['pages'])-3}"
         print(
-            f"  {data['ua']:<{col_ua}}  {ip:<{col_ip}} {data['count']:>{col_count}}  {data['last_seen']:<{col_last}}"
-            f"  {pages:<{col_pages}}"
+            f"  {ip:<{col_ip}} {data['count']:>{col_count}}  {data['last_seen']:<{col_last}}"
+            f"  {data['ua']:<{col_ua}}  {pages:<{col_pages}}"
         )
 
     print()
