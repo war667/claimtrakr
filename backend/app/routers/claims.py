@@ -49,9 +49,22 @@ def _build_where(
             for i, t in enumerate(types):
                 params[f"ct{i}"] = t
     if closed_within_days:
-        conditions.append("c.closed_dt >= NOW() - INTERVAL ':days days'")
-        # Use direct substitution for interval (safe, it's an int)
-        conditions[-1] = f"c.closed_dt >= NOW() - INTERVAL '{int(closed_within_days)} days'"
+        # closed_dt is NULL for all BLM records (API doesn't return dates).
+        # Use claim_events instead: find CLOSED claims whose status transition
+        # or first-seen event was detected within N days.
+        days = int(closed_within_days)
+        conditions.append(f"""
+            c.case_status = 'CLOSED'
+            AND EXISTS (
+                SELECT 1 FROM claim_events ce
+                WHERE ce.serial_nr = c.serial_nr
+                  AND (
+                    (ce.event_type = 'status_changed' AND ce.new_value = 'CLOSED')
+                    OR ce.event_type = 'new_claim'
+                  )
+                  AND ce.detected_at >= NOW() - INTERVAL '{days} days'
+            )
+        """)
     if disposition_cd:
         conditions.append("c.disposition_cd = :disposition_cd")
         params["disposition_cd"] = disposition_cd

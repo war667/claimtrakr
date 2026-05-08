@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchCounties } from '../../api/reference';
 import { CLAIM_TYPES } from '../../constants';
 
-export default function FilterPanel({ filters, onChange, onApply, onReset }) {
+export default function FilterPanel({ filters, onChange, onReset }) {
   const [collapsed, setCollapsed] = useState(false);
   const [countySearch, setCountySearch] = useState('');
 
@@ -132,12 +132,9 @@ export default function FilterPanel({ filters, onChange, onApply, onReset }) {
         </select>
       </FilterSection>
 
-      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-        <button onClick={onApply} style={{ ...btnStyle, flex: 1, background: '#2563eb', color: '#fff', border: 'none' }}>
-          Apply
-        </button>
-        <button onClick={onReset} style={{ ...btnStyle, flex: 1, background: '#0a1628', color: '#94a3b8' }}>
-          Reset
+      <div style={{ marginTop: '12px' }}>
+        <button onClick={onReset} style={{ ...btnStyle, width: '100%', background: '#0a1628', color: '#94a3b8' }}>
+          Reset Filters
         </button>
       </div>
     </div>
