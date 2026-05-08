@@ -134,7 +134,11 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler") -> int
             if source.source_type == "arcgis_rest":
                 state_filter = source.state_filter or ["UT", "NV"]
 
+                fetch_errors = 0
+
                 async def on_fetch_error(error_type, page_offset, error_message, raw_data):
+                    nonlocal fetch_errors
+                    fetch_errors += 1
                     await _log_error(
                         session, run_id, error_type, error_message,
                         page_offset=page_offset, raw_data=raw_data
@@ -269,21 +273,22 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler") -> int
                     if records_upserted % 500 == 0:
                         await session.flush()
 
-                # Detect removed records
-                removed_result = await session.execute(
-                    text("""
-                    SELECT serial_nr FROM claims
-                    WHERE source_id = :sid AND last_seen_at < :run_start
-                    """),
-                    {"sid": source.id, "run_start": run_start_time},
-                )
-                for (removed_serial,) in removed_result.fetchall():
-                    session.add(ClaimEvent(
-                        serial_nr=removed_serial,
-                        run_id=run_id,
-                        event_type="claim_removed",
-                    ))
-                    changes_detected += 1
+                # Only detect removed records if the fetch completed without errors
+                if fetch_errors == 0:
+                    removed_result = await session.execute(
+                        text("""
+                        SELECT serial_nr FROM claims
+                        WHERE source_id = :sid AND last_seen_at < :run_start
+                        """),
+                        {"sid": source.id, "run_start": run_start_time},
+                    )
+                    for (removed_serial,) in removed_result.fetchall():
+                        session.add(ClaimEvent(
+                            serial_nr=removed_serial,
+                            run_id=run_id,
+                            event_type="claim_removed",
+                        ))
+                        changes_detected += 1
 
             run.status = "success" if records_errored == 0 else "partial"
             run.records_fetched = records_fetched
