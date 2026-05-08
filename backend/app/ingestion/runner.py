@@ -229,8 +229,8 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                         session.add(event)
                         changes_detected += 1
                     else:
-                        new_status = normalized["case_status"]
-                        old_status = existing["case_status"]
+                        new_status = str(normalized["case_status"]).strip() if normalized.get("case_status") else None
+                        old_status = str(existing["case_status"]).strip() if existing.get("case_status") else None
                         if old_status and new_status and old_status != new_status:
                             session.add(ClaimEvent(
                                 serial_nr=serial_nr,
@@ -242,8 +242,8 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                             ))
                             changes_detected += 1
 
-                        new_claimant = normalized.get("claimant_name")
-                        old_claimant = existing.get("claimant_name")
+                        new_claimant = str(normalized["claimant_name"]).strip() if normalized.get("claimant_name") else None
+                        old_claimant = str(existing["claimant_name"]).strip() if existing.get("claimant_name") else None
                         if old_claimant and new_claimant and old_claimant != new_claimant:
                             session.add(ClaimEvent(
                                 serial_nr=serial_nr,
@@ -254,8 +254,8 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                             ))
                             changes_detected += 1
 
-                        new_disp = normalized.get("disposition_cd")
-                        old_disp = existing.get("disposition_cd")
+                        new_disp = str(normalized["disposition_cd"]).strip() if normalized.get("disposition_cd") is not None else None
+                        old_disp = str(existing["disposition_cd"]).strip() if existing.get("disposition_cd") is not None else None
                         if old_disp and new_disp and old_disp != new_disp:
                             session.add(ClaimEvent(
                                 serial_nr=serial_nr,
