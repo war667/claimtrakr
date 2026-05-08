@@ -91,7 +91,7 @@ def render(visitors, interval):
             f"  {data['ua']:<{col_ua}}  {pages:<{col_pages}}"
         )
         if i == 0:
-            print(f"\033[93m{line}\033[0m")
+            print("\033[93m" + line + "\033[0m")
         else:
             print(line)
 
