@@ -180,19 +180,17 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
 
                 records_fetched = len(features)
 
-                # Get existing claims for change detection, scoped by state.
-                # Cannot filter by source_id because the upsert overwrites it on every run,
-                # causing all records to appear as new_claim events on subsequent runs.
-                state_placeholders = ", ".join(f":st{i}" for i in range(len(state_filter)))
-                state_params = {f"st{i}": s for i, s in enumerate(state_filter)}
+                # Load all existing claims for change detection.
+                # Do not filter by source_id (overwritten on every upsert) or state
+                # (ADMIN_STATE values from BLM API may not match stored state values).
                 existing_result = await session.execute(
-                    text(f"SELECT serial_nr, case_status, claimant_name, disposition_cd FROM claims WHERE state IN ({state_placeholders})"),
-                    state_params,
+                    text("SELECT serial_nr, case_status, claimant_name, disposition_cd FROM claims")
                 )
                 existing_map = {
                     row[0]: {"case_status": row[1], "claimant_name": row[2], "disposition_cd": row[3]}
                     for row in existing_result.fetchall()
                 }
+                logger.info(f"Run {run_id}: existing_map loaded {len(existing_map)} claims")
 
                 for feature in features:
                     normalized, err = normalize_feature(
@@ -302,11 +300,8 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                 # Only detect removed records if the fetch completed without errors
                 if fetch_errors == 0:
                     removed_result = await session.execute(
-                        text(f"""
-                        SELECT serial_nr FROM claims
-                        WHERE state IN ({state_placeholders}) AND last_seen_at < :run_start
-                        """),
-                        {**state_params, "run_start": run_start_time},
+                        text("SELECT serial_nr FROM claims WHERE serial_nr = ANY(:serials) AND last_seen_at < :run_start"),
+                        {"serials": list(existing_map.keys()), "run_start": run_start_time},
                     )
                     for (removed_serial,) in removed_result.fetchall():
                         session.add(ClaimEvent(
