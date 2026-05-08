@@ -7,6 +7,19 @@ import argparse
 import os
 import time
 from collections import defaultdict
+from datetime import datetime, timezone, timedelta
+
+MOUNTAIN_OFFSET = timedelta(hours=-6)  # MDT; change to -7 for MST
+
+
+def to_mountain(ts_str):
+    """Convert ISO timestamp from nginx log to Mountain time string."""
+    try:
+        dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+        mt = dt.astimezone(timezone(MOUNTAIN_OFFSET))
+        return mt.strftime('%m/%d %I:%M %p MT')
+    except Exception:
+        return ts_str[:16]
 
 LOG_FILE = "logs/nginx/access.log"
 DEFAULT_EXCLUDE = {"159.26.99.77"}
@@ -25,7 +38,7 @@ def parse_log(path, exclude_ips):
                     continue
                 v = visitors[ip]
                 v["count"] += 1
-                v["last_seen"] = timestamp[:16].replace("T", " ")
+                v["last_seen"] = to_mountain(timestamp)
                 v["ua"] = ua[:60]
                 method_path = request.split(" ")
                 if len(method_path) >= 2:
