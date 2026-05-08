@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { to: '/ingestion', icon: '⬇️', label: 'Ingestion' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onNavClick }) {
   return (
     <aside style={{
       width: '200px',
@@ -38,6 +38,7 @@ export default function Sidebar() {
             key={to}
             to={to}
             end={to === '/'}
+            onClick={onNavClick}
             style={({ isActive }) => ({
               display: 'flex',
               alignItems: 'center',

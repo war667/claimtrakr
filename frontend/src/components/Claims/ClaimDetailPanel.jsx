@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createTarget } from '../../api/targets';
 import StatusBadge from './StatusBadge';
 import ClaimEventLog from './ClaimEventLog';
+import useIsMobile from '../../hooks/useIsMobile';
 
 function Field({ label, value }) {
   if (!value && value !== 0) return null;
@@ -28,6 +29,7 @@ export default function ClaimDetailPanel({ claim, onClose }) {
   const [rawOpen, setRawOpen] = useState(false);
   const [addedMsg, setAddedMsg] = useState('');
 
+  const isMobile = useIsMobile();
   const addTargetMutation = useMutation({
     mutationFn: () => createTarget({ serial_nr: claim.serial_nr }),
     onSuccess: (newTarget) => {
@@ -46,7 +48,7 @@ export default function ClaimDetailPanel({ claim, onClose }) {
       position: 'fixed',
       top: 0,
       right: 0,
-      width: '380px',
+      width: isMobile ? '100vw' : '380px',
       height: '100vh',
       background: '#0f2039',
       borderLeft: '1px solid rgba(255,255,255,0.08)',

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchStats } from '../api/reference';
 import { fetchIngestionStatus } from '../api/ingest';
 import { INGESTION_STATUS_COLORS } from '../constants';
+import useIsMobile from '../hooks/useIsMobile';
 import { format, parseISO } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
@@ -64,9 +65,11 @@ export default function DashboardPage() {
   });
 
   const isEmpty = !stats || stats.total_claims === 0;
+  const isMobile = useIsMobile();
+  const pad = isMobile ? '12px' : '24px';
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1200px' }}>
+    <div style={{ padding: pad, maxWidth: '1200px' }}>
       {isEmpty && !statsLoading && (
         <div style={{
           background: 'rgba(37,99,235,0.12)',
