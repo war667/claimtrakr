@@ -126,7 +126,11 @@ export default function DashboardPage() {
                   <td style={{ padding: '7px 12px', color: '#9ca3af', whiteSpace: 'nowrap' }}>
                     {ev.detected_at ? format(parseISO(ev.detected_at), 'MMM d HH:mm') : '—'}
                   </td>
-                  <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: '#2563eb' }}>{ev.serial_nr}</td>
+                  <td style={{ padding: '7px 12px', fontFamily: 'monospace' }}>
+                    {ev.blm_url ? (
+                      <a href={ev.blm_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>{ev.serial_nr}</a>
+                    ) : ev.serial_nr}
+                  </td>
                   <td style={{ padding: '7px 12px' }}>{EVENT_TYPE_LABELS[ev.event_type] || ev.event_type}</td>
                   <td style={{ padding: '7px 12px', color: '#6b7280' }}>
                     {ev.old_value && ev.new_value ? `${ev.old_value} → ${ev.new_value}` : (ev.event_subtype || '')}

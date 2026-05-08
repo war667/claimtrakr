@@ -117,9 +117,10 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         last_ingestion_at = last_run[0]
 
     events_result = await db.execute(text("""
-        SELECT serial_nr, event_type, event_subtype, old_value, new_value, detected_at
-        FROM claim_events
-        ORDER BY detected_at DESC
+        SELECT ce.serial_nr, ce.event_type, ce.event_subtype, ce.old_value, ce.new_value, ce.detected_at, c.blm_url
+        FROM claim_events ce
+        LEFT JOIN claims c ON c.serial_nr = ce.serial_nr
+        ORDER BY ce.detected_at DESC
         LIMIT 10
     """))
     event_rows = events_result.fetchall()
@@ -139,6 +140,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
             "new_value": r[4],
             "detected_at": str(r[5]) if r[5] else None,
             "description": " | ".join(desc_parts),
+            "blm_url": r[6],
         })
 
     return {
