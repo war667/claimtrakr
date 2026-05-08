@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchClaims } from '../../api/claims';
 import StatusBadge from './StatusBadge';
@@ -34,6 +34,8 @@ export default function ClaimsTable({ filters, targetSerialNrs = [], onRowClick,
   const [sortBy, setSortBy] = useState('last_seen_at');
   const [sortDir, setSortDir] = useState('desc');
   const PAGE_SIZE = 100;
+
+  useEffect(() => { setPage(1); }, [filters]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['claims', filters, page, sortBy, sortDir],
