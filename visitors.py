@@ -26,7 +26,7 @@ DEFAULT_EXCLUDE = {"159.26.99.77"}
 
 
 def parse_log(path, exclude_ips):
-    visitors = defaultdict(lambda: {"count": 0, "last_seen_raw": "", "last_seen": "", "ua": "", "pages": set()})
+    visitors = defaultdict(lambda: {"count": 0, "last_seen_raw": None, "last_seen": "", "ua": "", "pages": set()})
     try:
         with open(path) as f:
             for line in f:
@@ -38,8 +38,12 @@ def parse_log(path, exclude_ips):
                     continue
                 v = visitors[ip]
                 v["count"] += 1
-                if timestamp > v["last_seen_raw"]:
-                    v["last_seen_raw"] = timestamp
+                try:
+                    ts_dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                except Exception:
+                    ts_dt = datetime.min.replace(tzinfo=timezone.utc)
+                if not v["last_seen_raw"] or ts_dt > v["last_seen_raw"]:
+                    v["last_seen_raw"] = ts_dt
                     v["last_seen"] = to_mountain(timestamp)
                 v["ua"] = ua[:60]
                 method_path = request.split(" ")
@@ -61,7 +65,7 @@ def render(visitors, interval):
         print("  No visitors yet (other than excluded IPs).")
         return
 
-    sorted_v = sorted(visitors.items(), key=lambda x: x[1]["last_seen_raw"], reverse=True)
+    sorted_v = sorted(visitors.items(), key=lambda x: x[1]["last_seen_raw"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
 
     col_ip    = 18
     col_count = 7
