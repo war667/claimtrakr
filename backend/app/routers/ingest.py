@@ -156,20 +156,19 @@ async def get_run(run_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/runs/cleanup", status_code=200)
 async def cleanup_runs(db: AsyncSession = Depends(get_db)):
-    """Mark stuck 'running' runs as errored, delete old error/partial runs beyond last 5 per source."""
-    # Fix stuck runs (running for more than 1 hour)
+    """Mark all stuck 'running' runs as errored, delete non-success runs beyond last 2 per source."""
+    # Fix ALL stuck running runs — no time threshold when user explicitly requests cleanup
     stuck_result = await db.execute(text("""
         UPDATE ingestion_runs
         SET status = 'error',
             finished_at = NOW(),
             error_summary = 'Run abandoned — app restarted or timed out'
         WHERE status = 'running'
-          AND started_at < NOW() - INTERVAL '1 hour'
         RETURNING id
     """))
     stuck_fixed = len(stuck_result.fetchall())
 
-    # Identify old error/partial/running runs to delete, keeping 5 most recent per source
+    # Identify non-success runs to delete, keeping last 2 per source
     to_delete_result = await db.execute(text("""
         SELECT id FROM (
             SELECT id, ROW_NUMBER() OVER (
@@ -178,16 +177,14 @@ async def cleanup_runs(db: AsyncSession = Depends(get_db)):
             FROM ingestion_runs
             WHERE status IN ('error', 'partial', 'running')
         ) ranked
-        WHERE rn > 5
+        WHERE rn > 2
     """))
     run_ids = [r[0] for r in to_delete_result.fetchall()]
 
     deleted = 0
     if run_ids:
         placeholders = ", ".join(str(i) for i in run_ids)
-        # Delete raw records first (no cascade on this FK)
         await db.execute(text(f"DELETE FROM source_raw_records WHERE run_id IN ({placeholders})"))
-        # ingestion_errors has ON DELETE CASCADE but delete explicitly to be safe
         await db.execute(text(f"DELETE FROM ingestion_errors WHERE run_id IN ({placeholders})"))
         del_result = await db.execute(text(f"DELETE FROM ingestion_runs WHERE id IN ({placeholders}) RETURNING id"))
         deleted = len(del_result.fetchall())
