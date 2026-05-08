@@ -11,6 +11,7 @@ export default function WorkflowStepper({ currentStatus }) {
       gap: '0',
       overflowX: 'auto',
       padding: '4px 0',
+      background: '#0a1628',
     }}>
       {WORKFLOW_STATUSES.map((s, i) => {
         const isDone = i < currentIdx;
@@ -27,11 +28,11 @@ export default function WorkflowStepper({ currentStatus }) {
               minWidth: '64px',
             }}>
               <div style={{
-                width: '24px',
-                height: '24px',
+                width: '28px',
+                height: '28px',
                 borderRadius: '50%',
-                background: isCurrent ? s.color : isDone ? '#6b7280' : '#e5e7eb',
-                color: isCurrent || isDone ? '#fff' : '#9ca3af',
+                background: isCurrent ? s.color : isDone ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
+                color: isCurrent ? '#fff' : isDone ? '#94a3b8' : '#334155',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -39,12 +40,13 @@ export default function WorkflowStepper({ currentStatus }) {
                 fontWeight: 700,
                 border: isCurrent ? `2px solid ${s.color}` : '2px solid transparent',
                 flexShrink: 0,
+                boxShadow: isCurrent ? `0 0 12px ${s.color}66` : 'none',
               }}>
                 {isDone ? '✓' : i + 1}
               </div>
               <div style={{
                 fontSize: '10px',
-                color: isCurrent ? s.color : isDone ? '#6b7280' : '#d1d5db',
+                color: isCurrent ? s.color : isDone ? '#94a3b8' : '#334155',
                 fontWeight: isCurrent ? 700 : 400,
                 textAlign: 'center',
                 lineHeight: 1.2,
@@ -58,7 +60,7 @@ export default function WorkflowStepper({ currentStatus }) {
                 height: '2px',
                 flex: '1',
                 minWidth: '12px',
-                background: isDone ? '#6b7280' : '#e5e7eb',
+                background: isDone ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.06)',
                 marginBottom: '20px',
               }} />
             )}

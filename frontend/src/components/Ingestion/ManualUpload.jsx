@@ -36,9 +36,9 @@ export default function ManualUpload() {
     <div>
       <div
         style={{
-          border: `2px dashed ${dragging ? '#3b82f6' : '#e5e7eb'}`,
-          borderRadius: '8px', padding: '24px', textAlign: 'center',
-          cursor: 'pointer', background: dragging ? '#eff6ff' : '#fafafa',
+          border: `2px dashed ${dragging ? '#2563eb' : 'rgba(255,255,255,0.12)'}`,
+          borderRadius: '10px', padding: '24px', textAlign: 'center',
+          cursor: 'pointer', background: dragging ? 'rgba(37,99,235,0.1)' : '#0a1628',
           marginBottom: '12px', transition: 'all 0.15s',
         }}
         onClick={() => fileInputRef.current?.click()}
@@ -51,7 +51,7 @@ export default function ManualUpload() {
         }}
       >
         <div style={{ fontSize: '32px', marginBottom: '8px' }}>📂</div>
-        <div style={{ fontSize: '14px', color: '#374151', fontWeight: 500 }}>
+        <div style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 500 }}>
           {file ? file.name : 'Drag & drop CSV or GeoJSON, or click to browse'}
         </div>
         {file && (
@@ -70,20 +70,20 @@ export default function ManualUpload() {
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
         <div style={{ flex: 1 }}>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px' }}>
+          <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '4px' }}>
             Source Type
           </label>
           <select
             value={sourceType}
             onChange={(e) => setSourceType(e.target.value)}
-            style={{ width: '100%', padding: '7px 10px', border: '1px solid #e5e7eb', borderRadius: '5px', fontSize: '13px' }}
+            style={{ width: '100%', padding: '7px 10px', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', fontSize: '13px', background: '#0a1628', color: '#ffffff' }}
           >
             <option value="csv">CSV</option>
             <option value="geojson">GeoJSON</option>
           </select>
         </div>
         <div style={{ flex: 2 }}>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px' }}>
+          <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '4px' }}>
             Notes (optional)
           </label>
           <input
@@ -91,7 +91,7 @@ export default function ManualUpload() {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="e.g. BLM data export Jan 2025"
-            style={{ width: '100%', padding: '7px 10px', border: '1px solid #e5e7eb', borderRadius: '5px', fontSize: '13px' }}
+            style={{ width: '100%', padding: '7px 10px', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', fontSize: '13px', background: '#0a1628', color: '#ffffff' }}
           />
         </div>
       </div>
@@ -100,8 +100,8 @@ export default function ManualUpload() {
         onClick={() => uploadMutation.mutate()}
         disabled={!file || uploadMutation.isPending}
         style={{
-          background: !file ? '#9ca3af' : '#1e293b', color: '#fff', border: 'none',
-          borderRadius: '5px', padding: '8px 20px', fontSize: '14px',
+          background: !file ? '#334155' : '#2563eb', color: '#fff', border: 'none',
+          borderRadius: '8px', padding: '8px 20px', fontSize: '14px',
           cursor: !file ? 'default' : 'pointer', fontWeight: 600,
         }}
       >
@@ -111,18 +111,18 @@ export default function ManualUpload() {
       {result && (
         <div style={{
           marginTop: '14px', padding: '12px 16px', borderRadius: '6px',
-          background: result.error ? '#fef2f2' : '#f0fdf4',
-          border: `1px solid ${result.error ? '#fca5a5' : '#86efac'}`,
+          background: result.error ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.08)',
+          border: `1px solid ${result.error ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
           fontSize: '13px',
         }}>
           {result.error ? (
-            <span style={{ color: '#991b1b' }}>❌ {result.error}</span>
+            <span style={{ color: '#fca5a5' }}>❌ {result.error}</span>
           ) : (
             <div>
-              <div style={{ color: '#166534', fontWeight: 600, marginBottom: '4px' }}>
+              <div style={{ color: '#86efac', fontWeight: 600, marginBottom: '4px' }}>
                 ✓ Upload complete
               </div>
-              <div style={{ color: '#374151' }}>
+              <div style={{ color: '#94a3b8' }}>
                 {result.accepted} accepted · {result.rejected} rejected · {result.errors} errors
                 {result.run_id && ` · Run #${result.run_id}`}
               </div>

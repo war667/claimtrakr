@@ -32,8 +32,8 @@ function RunRow({ run }) {
     <>
       <tr
         onClick={() => setExpanded((v) => !v)}
-        style={{ cursor: 'pointer', borderBottom: '1px solid #f3f4f6' }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = '#f9fafb')}
+        style={{ cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = '#0d1f35')}
         onMouseLeave={(e) => (e.currentTarget.style.background = '')}
       >
         <td style={TD}>{run.id}</td>
@@ -45,27 +45,29 @@ function RunRow({ run }) {
         <td style={TD}>{run.records_fetched?.toLocaleString()}</td>
         <td style={TD}>{run.records_upserted?.toLocaleString()}</td>
         <td style={TD}>{run.changes_detected?.toLocaleString()}</td>
-        <td style={{ ...TD, color: run.records_errored > 0 ? '#ef4444' : '#9ca3af' }}>
+        <td style={{ ...TD, color: run.records_errored > 0 ? '#ef4444' : '#4b6079' }}>
           {run.records_errored}
         </td>
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={10} style={{ padding: '0 16px 12px', background: '#f9fafb' }}>
+          <td colSpan={10} style={{ padding: '0 16px 12px', background: '#080f1e' }}>
             {!detail ? (
-              <div style={{ fontSize: '12px', color: '#9ca3af', padding: '8px 0' }}>Loading...</div>
+              <div style={{ fontSize: '12px', color: '#4b6079', padding: '8px 0' }}>Loading...</div>
             ) : detail.errors?.length === 0 ? (
-              <div style={{ fontSize: '12px', color: '#6b7280', padding: '8px 0' }}>No errors for this run.</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', padding: '8px 0' }}>No errors for this run.</div>
             ) : (
               <div style={{ marginTop: '8px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#374151' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: '#94a3b8' }}>
                   Errors ({detail.errors.length})
                 </div>
                 {detail.errors.slice(0, 20).map((e) => (
                   <div key={e.id} style={{
-                    fontSize: '11px', padding: '4px 8px', background: '#fff',
-                    border: '1px solid #fca5a5', borderRadius: '4px', marginBottom: '4px',
-                    color: '#991b1b',
+                    fontSize: '11px', padding: '4px 8px',
+                    background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.25)',
+                    borderRadius: '4px', marginBottom: '4px',
+                    color: '#fca5a5',
                   }}>
                     [{e.error_type}] {e.serial_nr ? `${e.serial_nr}: ` : ''}{e.error_message}
                   </div>
@@ -79,8 +81,19 @@ function RunRow({ run }) {
   );
 }
 
-const TD = { padding: '8px 12px', fontSize: '13px', color: '#374151', whiteSpace: 'nowrap' };
-const TH = { ...TD, background: '#f9fafb', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid #e5e7eb' };
+const TD = {
+  padding: '8px 12px', fontSize: '13px', color: '#94a3b8', whiteSpace: 'nowrap',
+};
+const TH = {
+  ...TD,
+  background: '#0d1f35',
+  fontWeight: 600,
+  fontSize: '11px',
+  color: '#06b6d4',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  borderBottom: '1px solid rgba(255,255,255,0.08)',
+};
 
 export default function RunHistory() {
   const [page, setPage] = useState(1);
@@ -91,7 +104,9 @@ export default function RunHistory() {
     refetchInterval: 10_000,
   });
 
-  if (isLoading) return <div style={{ padding: '20px', color: '#9ca3af', fontSize: '13px' }}>Loading run history...</div>;
+  if (isLoading) return (
+    <div style={{ padding: '20px', color: '#4b6079', fontSize: '13px' }}>Loading run history...</div>
+  );
 
   const runs = data?.items || [];
   const total = data?.total || 0;
@@ -110,7 +125,7 @@ export default function RunHistory() {
           <tbody>
             {runs.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>
+                <td colSpan={10} style={{ padding: '24px', textAlign: 'center', color: '#4b6079', fontSize: '13px' }}>
                   No ingestion runs yet. Click "Run All Sources" or "Run Now" on a source card.
                 </td>
               </tr>
@@ -125,7 +140,7 @@ export default function RunHistory() {
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={btnStyle}>
             ‹ Prev
           </button>
-          <span style={{ fontSize: '13px', alignSelf: 'center', color: '#6b7280' }}>
+          <span style={{ fontSize: '13px', alignSelf: 'center', color: '#94a3b8' }}>
             Page {page} of {Math.ceil(total / 50)}
           </span>
           <button onClick={() => setPage((p) => p + 1)} disabled={page * 50 >= total} style={btnStyle}>
@@ -138,6 +153,6 @@ export default function RunHistory() {
 }
 
 const btnStyle = {
-  background: '#fff', border: '1px solid #e5e7eb', borderRadius: '4px',
-  padding: '4px 12px', fontSize: '13px', cursor: 'pointer', color: '#374151',
+  background: '#0d1f35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px',
+  padding: '4px 12px', fontSize: '13px', cursor: 'pointer', color: '#94a3b8',
 };

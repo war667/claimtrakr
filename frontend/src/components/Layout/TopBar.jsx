@@ -17,8 +17,8 @@ export default function TopBar() {
   return (
     <header style={{
       height: '52px',
-      background: '#ffffff',
-      borderBottom: '1px solid #e5e7eb',
+      background: '#0f2039',
+      borderBottom: '1px solid rgba(255,255,255,0.08)',
       display: 'flex',
       alignItems: 'center',
       padding: '0 24px',
@@ -28,7 +28,7 @@ export default function TopBar() {
         margin: 0,
         fontSize: '16px',
         fontWeight: 600,
-        color: '#111827',
+        color: '#ffffff',
       }}>
         {title}
       </h1>

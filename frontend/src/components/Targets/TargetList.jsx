@@ -39,7 +39,7 @@ export default function TargetList({ filters }) {
     return acc;
   }, {});
 
-  if (isLoading) return <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>Loading targets...</div>;
+  if (isLoading) return <div style={{ padding: '40px', textAlign: 'center', color: '#4b6079' }}>Loading targets...</div>;
   if (error) return <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>Error: {error.message}</div>;
 
   return (
@@ -47,11 +47,12 @@ export default function TargetList({ filters }) {
       {/* Summary Pills */}
       <div style={{
         display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '10px 16px',
-        borderBottom: '1px solid #e5e7eb', background: '#fff',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        background: '#0f2039',
       }}>
         {WORKFLOW_STATUSES.filter((s) => statusCounts[s.key] > 0).map((s) => (
           <span key={s.key} style={{
-            background: s.color + '22', color: s.color, border: `1px solid ${s.color}44`,
+            background: s.color + '18', color: s.color, border: `1px solid ${s.color}44`,
             borderRadius: '9999px', padding: '2px 10px', fontSize: '12px', fontWeight: 600,
           }}>
             {s.label}: {statusCounts[s.key]}
@@ -61,7 +62,7 @@ export default function TargetList({ filters }) {
         <button
           onClick={() => setNewTargetModal(true)}
           style={{
-            background: '#1e293b', color: '#fff', border: 'none', borderRadius: '5px',
+            background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px',
             padding: '4px 14px', fontSize: '13px', cursor: 'pointer', fontWeight: 600,
           }}
         >
@@ -79,12 +80,12 @@ export default function TargetList({ filters }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
-              <tr style={{ background: '#f9fafb' }}>
+              <tr style={{ background: '#0d1f35' }}>
                 {['Internal Name', 'Serial #', 'County', 'Type', 'Claim Status', 'Workflow', 'Assigned', 'Priority', 'Created'].map((h) => (
                   <th key={h} style={{
-                    padding: '8px 12px', textAlign: 'left', fontWeight: 600, fontSize: '12px',
-                    color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em',
-                    borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap',
+                    padding: '8px 12px', textAlign: 'left', fontWeight: 600, fontSize: '11px',
+                    color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.04em',
+                    borderBottom: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap',
                   }}>
                     {h}
                   </th>
@@ -98,20 +99,20 @@ export default function TargetList({ filters }) {
                   <tr
                     key={t.id}
                     onClick={() => navigate(`/targets/${t.id}`)}
-                    style={{ cursor: 'pointer', borderBottom: '1px solid #f3f4f6' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f9fafb')}
+                    style={{ cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#0d1f35')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = '')}
                   >
-                    <td style={{ padding: '8px 12px', fontWeight: 500 }}>{t.internal_name || '—'}</td>
+                    <td style={{ padding: '8px 12px', fontWeight: 500, color: '#ffffff' }}>{t.internal_name || '—'}</td>
                     <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '12px', color: '#2563eb' }}>{t.serial_nr}</td>
-                    <td style={{ padding: '8px 12px' }}>{t.county || '—'}</td>
-                    <td style={{ padding: '8px 12px' }}>{t.claim_type || '—'}</td>
+                    <td style={{ padding: '8px 12px', color: '#94a3b8' }}>{t.county || '—'}</td>
+                    <td style={{ padding: '8px 12px', color: '#94a3b8' }}>{t.claim_type || '—'}</td>
                     <td style={{ padding: '8px 12px' }}>
                       <StatusBadge status={t.case_status} closedDt={t.closed_dt} />
                     </td>
                     <td style={{ padding: '8px 12px' }}>
                       <span style={{
-                        background: (ws?.color || '#6b7280') + '22',
+                        background: (ws?.color || '#6b7280') + '18',
                         color: ws?.color || '#6b7280',
                         border: `1px solid ${(ws?.color || '#6b7280')}44`,
                         borderRadius: '9999px', padding: '2px 8px', fontSize: '11px', fontWeight: 600,
@@ -119,9 +120,9 @@ export default function TargetList({ filters }) {
                         {ws?.label || t.workflow_status}
                       </span>
                     </td>
-                    <td style={{ padding: '8px 12px' }}>{t.assigned_to || '—'}</td>
-                    <td style={{ padding: '8px 12px' }}>{t.priority_label || '—'}</td>
-                    <td style={{ padding: '8px 12px', color: '#9ca3af', fontSize: '12px' }}>
+                    <td style={{ padding: '8px 12px', color: '#94a3b8' }}>{t.assigned_to || '—'}</td>
+                    <td style={{ padding: '8px 12px', color: '#94a3b8' }}>{t.priority_label || '—'}</td>
+                    <td style={{ padding: '8px 12px', color: '#4b6079', fontSize: '12px' }}>
                       {t.created_at ? format(parseISO(t.created_at), 'MMM d, yyyy') : '—'}
                     </td>
                   </tr>
@@ -135,15 +136,18 @@ export default function TargetList({ filters }) {
       {/* New Target Modal */}
       {newTargetModal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10000,
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10000,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <div style={{
-            background: '#fff', borderRadius: '8px', padding: '24px', width: '360px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+            background: '#0f2039',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '12px',
+            padding: '24px', width: '360px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
           }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '16px' }}>New Target</h3>
-            <label style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '16px', color: '#ffffff' }}>New Target</h3>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Claim Serial Number
             </label>
             <input
@@ -153,7 +157,8 @@ export default function TargetList({ filters }) {
               placeholder="e.g. UMC123456"
               style={{
                 width: '100%', marginTop: '6px', padding: '8px 10px',
-                border: '1px solid #e5e7eb', borderRadius: '5px', fontSize: '14px',
+                background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '6px', fontSize: '14px', color: '#ffffff',
               }}
               autoFocus
             />
@@ -163,7 +168,7 @@ export default function TargetList({ filters }) {
                 onClick={() => createMutation.mutate()}
                 disabled={!newSerial.trim() || createMutation.isPending}
                 style={{
-                  flex: 1, background: '#1e293b', color: '#fff', border: 'none', borderRadius: '5px',
+                  flex: 1, background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px',
                   padding: '8px', fontSize: '14px', cursor: 'pointer', fontWeight: 600,
                 }}
               >
@@ -172,8 +177,9 @@ export default function TargetList({ filters }) {
               <button
                 onClick={() => { setNewTargetModal(false); setCreateError(''); setNewSerial(''); }}
                 style={{
-                  background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb',
-                  borderRadius: '5px', padding: '8px 16px', fontSize: '14px', cursor: 'pointer',
+                  background: '#0d1f35', color: '#94a3b8',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px', padding: '8px 16px', fontSize: '14px', cursor: 'pointer',
                 }}
               >
                 Cancel

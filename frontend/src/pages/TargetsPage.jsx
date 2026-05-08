@@ -10,7 +10,9 @@ export default function TargetsPage() {
       {/* Filter bar */}
       <div style={{
         display: 'flex', gap: '10px', flexWrap: 'wrap', padding: '12px 16px',
-        background: '#fff', borderBottom: '1px solid #e5e7eb', alignItems: 'flex-end',
+        background: '#0f2039',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        alignItems: 'flex-end',
       }}>
         <div>
           <label style={labelStyle}>Workflow Status</label>
@@ -50,8 +52,10 @@ export default function TargetsPage() {
         <button
           onClick={() => setFilters({})}
           style={{
-            background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '4px',
-            padding: '5px 12px', fontSize: '13px', cursor: 'pointer', color: '#374151',
+            background: '#0d1f35',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '6px',
+            padding: '5px 12px', fontSize: '13px', cursor: 'pointer', color: '#94a3b8',
           }}
         >
           Reset
@@ -66,10 +70,14 @@ export default function TargetsPage() {
 }
 
 const labelStyle = {
-  fontSize: '11px', fontWeight: 600, color: '#6b7280',
-  display: 'block', marginBottom: '3px', textTransform: 'uppercase',
+  fontSize: '11px', fontWeight: 600, color: '#06b6d4',
+  display: 'block', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.04em',
 };
 const selectStyle = {
-  padding: '5px 8px', border: '1px solid #e5e7eb', borderRadius: '4px',
-  fontSize: '13px', background: '#fff',
+  padding: '5px 8px',
+  border: '1px solid rgba(255,255,255,0.12)',
+  borderRadius: '6px',
+  fontSize: '13px',
+  background: '#0d1f35',
+  color: '#ffffff',
 };

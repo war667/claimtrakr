@@ -21,7 +21,9 @@ export default function FilterPanel({ filters, onChange, onApply, onReset }) {
     return (
       <div style={{
         position: 'absolute', top: '80px', left: '10px', zIndex: 1000,
-        background: '#fff', borderRadius: '6px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        background: '#0d1f35', borderRadius: '8px',
+        border: '1px solid rgba(255,255,255,0.1)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
         padding: '8px',
       }}>
         <button onClick={() => setCollapsed(false)} style={btnStyle}>
@@ -34,12 +36,18 @@ export default function FilterPanel({ filters, onChange, onApply, onReset }) {
   return (
     <div style={{
       position: 'absolute', top: '80px', left: '10px', zIndex: 1000,
-      background: '#fff', borderRadius: '8px', boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+      background: '#0d1f35',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: '12px',
+      boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
       width: '260px', padding: '14px',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <strong style={{ fontSize: '13px' }}>Filters</strong>
-        <button onClick={() => setCollapsed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '18px' }}>
+        <strong style={{ fontSize: '13px', color: '#ffffff' }}>Filters</strong>
+        <button
+          onClick={() => setCollapsed(true)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '18px' }}
+        >
           ‹
         </button>
       </div>
@@ -73,7 +81,10 @@ export default function FilterPanel({ filters, onChange, onApply, onReset }) {
 
       <FilterSection label="Claim Types">
         {CLAIM_TYPES.map((ct) => (
-          <label key={ct} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginBottom: '4px', cursor: 'pointer' }}>
+          <label key={ct} style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            fontSize: '12px', marginBottom: '4px', cursor: 'pointer', color: '#94a3b8',
+          }}>
             <input
               type="checkbox"
               checked={(filters.claim_types || []).includes(ct)}
@@ -84,6 +95,7 @@ export default function FilterPanel({ filters, onChange, onApply, onReset }) {
                   : current.filter((x) => x !== ct);
                 onChange({ ...filters, claim_types: updated.length ? updated : undefined });
               }}
+              style={{ accentColor: '#2563eb' }}
             />
             {ct.replace(/_/g, ' ')}
           </label>
@@ -97,14 +109,19 @@ export default function FilterPanel({ filters, onChange, onApply, onReset }) {
           value={countySearch}
           onChange={(e) => setCountySearch(e.target.value)}
           style={{
-            width: '100%', padding: '4px 8px', border: '1px solid #e5e7eb',
-            borderRadius: '4px', fontSize: '12px', marginBottom: '4px',
+            width: '100%', padding: '4px 8px', marginBottom: '4px',
+            background: '#0a1628', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '6px', fontSize: '12px', color: '#ffffff',
           }}
         />
         <select
           value={filters.county || ''}
           onChange={(e) => onChange({ ...filters, county: e.target.value || undefined })}
-          style={{ width: '100%', padding: '4px', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '12px' }}
+          style={{
+            width: '100%', padding: '4px',
+            background: '#0a1628', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '6px', fontSize: '12px', color: '#ffffff',
+          }}
         >
           <option value="">All counties</option>
           {filteredCounties.map((c) => (
@@ -116,10 +133,10 @@ export default function FilterPanel({ filters, onChange, onApply, onReset }) {
       </FilterSection>
 
       <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-        <button onClick={onApply} style={{ ...btnStyle, flex: 1, background: '#1e293b', color: '#fff' }}>
+        <button onClick={onApply} style={{ ...btnStyle, flex: 1, background: '#2563eb', color: '#fff', border: 'none' }}>
           Apply
         </button>
-        <button onClick={onReset} style={{ ...btnStyle, flex: 1, background: '#f3f4f6', color: '#374151' }}>
+        <button onClick={onReset} style={{ ...btnStyle, flex: 1, background: '#0a1628', color: '#94a3b8' }}>
           Reset
         </button>
       </div>
@@ -130,7 +147,10 @@ export default function FilterPanel({ filters, onChange, onApply, onReset }) {
 function FilterSection({ label, children }) {
   return (
     <div style={{ marginBottom: '12px' }}>
-      <div style={{ fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+      <div style={{
+        fontSize: '11px', fontWeight: 600, color: '#06b6d4',
+        textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px',
+      }}>
         {label}
       </div>
       {children}
@@ -146,9 +166,10 @@ function ButtonGroup({ options, value, onChange }) {
           key={k}
           onClick={() => onChange(k)}
           style={{
-            padding: '3px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #e5e7eb',
-            background: value === k ? '#1e293b' : '#fff',
-            color: value === k ? '#fff' : '#374151',
+            padding: '3px 10px', fontSize: '12px', borderRadius: '6px', cursor: 'pointer',
+            border: '1px solid rgba(255,255,255,0.1)',
+            background: value === k ? '#2563eb' : '#0a1628',
+            color: value === k ? '#ffffff' : '#94a3b8',
             fontWeight: value === k ? 600 : 400,
           }}
         >
@@ -160,5 +181,6 @@ function ButtonGroup({ options, value, onChange }) {
 }
 
 const btnStyle = {
-  padding: '6px 12px', fontSize: '13px', borderRadius: '5px', cursor: 'pointer', border: '1px solid #e5e7eb',
+  padding: '6px 12px', fontSize: '13px', borderRadius: '6px', cursor: 'pointer',
+  border: '1px solid rgba(255,255,255,0.12)',
 };

@@ -9,16 +9,16 @@ export default function EmptyState({ icon = '📭', title, message, action }) {
       justifyContent: 'center',
       padding: '48px 24px',
       textAlign: 'center',
-      color: '#6b7280',
+      color: '#4b6079',
     }}>
       <div style={{ fontSize: '48px', marginBottom: '16px' }}>{icon}</div>
       {title && (
-        <h3 style={{ margin: '0 0 8px', fontSize: '16px', color: '#374151', fontWeight: 600 }}>
+        <h3 style={{ margin: '0 0 8px', fontSize: '16px', color: '#ffffff', fontWeight: 600 }}>
           {title}
         </h3>
       )}
       {message && (
-        <p style={{ margin: '0 0 16px', fontSize: '14px', maxWidth: '400px' }}>
+        <p style={{ margin: '0 0 16px', fontSize: '14px', maxWidth: '400px', color: '#94a3b8' }}>
           {message}
         </p>
       )}

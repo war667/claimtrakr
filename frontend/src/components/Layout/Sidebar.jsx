@@ -13,7 +13,8 @@ export default function Sidebar() {
   return (
     <aside style={{
       width: '200px',
-      background: '#1e293b',
+      background: '#0a1628',
+      borderRight: '1px solid rgba(255,255,255,0.08)',
       color: '#f1f5f9',
       display: 'flex',
       flexDirection: 'column',
@@ -22,9 +23,9 @@ export default function Sidebar() {
     }}>
       <div style={{
         padding: '20px 16px 16px',
-        borderBottom: '1px solid #334155',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
       }}>
-        <div style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9' }}>
+        <div style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff' }}>
           ⛏ ClaimTrakr
         </div>
         <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
@@ -43,9 +44,9 @@ export default function Sidebar() {
               gap: '10px',
               padding: '10px 16px',
               textDecoration: 'none',
-              color: isActive ? '#f1f5f9' : '#94a3b8',
-              background: isActive ? '#334155' : 'transparent',
-              borderLeft: isActive ? '3px solid #3b82f6' : '3px solid transparent',
+              color: isActive ? '#ffffff' : '#94a3b8',
+              background: isActive ? '#0f2039' : 'transparent',
+              borderLeft: isActive ? '3px solid #2563eb' : '3px solid transparent',
               fontSize: '14px',
               fontWeight: isActive ? 600 : 400,
               transition: 'all 0.15s',
@@ -58,9 +59,9 @@ export default function Sidebar() {
       </nav>
       <div style={{
         padding: '12px 16px',
-        borderTop: '1px solid #334155',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
         fontSize: '11px',
-        color: '#475569',
+        color: '#334155',
       }}>
         Internal Use Only
       </div>

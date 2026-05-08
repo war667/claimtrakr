@@ -8,11 +8,14 @@ import ClaimEventLog from './ClaimEventLog';
 function Field({ label, value }) {
   if (!value && value !== 0) return null;
   return (
-    <div style={{ marginBottom: '8px' }}>
-      <dt style={{ fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+    <div style={{ marginBottom: '10px' }}>
+      <dt style={{
+        fontSize: '10px', color: '#06b6d4', textTransform: 'uppercase',
+        letterSpacing: '0.06em', marginBottom: '2px', fontWeight: 600,
+      }}>
         {label}
       </dt>
-      <dd style={{ margin: 0, fontSize: '13px', color: '#111827', wordBreak: 'break-word' }}>
+      <dd style={{ margin: 0, fontSize: '13px', color: '#ffffff', wordBreak: 'break-word' }}>
         {value}
       </dd>
     </div>
@@ -45,8 +48,9 @@ export default function ClaimDetailPanel({ claim, onClose }) {
       right: 0,
       width: '380px',
       height: '100vh',
-      background: '#ffffff',
-      boxShadow: '-4px 0 24px rgba(0,0,0,0.12)',
+      background: '#0f2039',
+      borderLeft: '1px solid rgba(255,255,255,0.08)',
+      boxShadow: '-4px 0 32px rgba(0,0,0,0.5)',
       zIndex: 10000,
       display: 'flex',
       flexDirection: 'column',
@@ -55,14 +59,17 @@ export default function ClaimDetailPanel({ claim, onClose }) {
       {/* Header */}
       <div style={{
         padding: '16px',
-        borderBottom: '1px solid #e5e7eb',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
         alignItems: 'flex-start',
         gap: '12px',
+        background: '#0d1f35',
       }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Serial #</div>
-          <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>
+          <div style={{ fontSize: '10px', color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>
+            Serial #
+          </div>
+          <div style={{ fontSize: '15px', fontWeight: 700, color: '#ffffff' }}>
             {claim.serial_nr}
           </div>
           <div style={{ marginTop: '6px' }}>
@@ -73,7 +80,7 @@ export default function ClaimDetailPanel({ claim, onClose }) {
           onClick={onClose}
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            color: '#6b7280', fontSize: '20px', padding: '0', lineHeight: 1,
+            color: '#94a3b8', fontSize: '20px', padding: '0', lineHeight: 1,
           }}
         >
           ×
@@ -84,13 +91,13 @@ export default function ClaimDetailPanel({ claim, onClose }) {
       <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
         {isClosed && (
           <div style={{
-            background: '#fff7ed',
-            border: '1px solid #f97316',
-            borderRadius: '6px',
+            background: 'rgba(249,115,22,0.1)',
+            border: '1px solid rgba(249,115,22,0.3)',
+            borderRadius: '8px',
             padding: '12px',
             marginBottom: '16px',
             fontSize: '12px',
-            color: '#9a3412',
+            color: '#fdba74',
           }}>
             ⚠️ <strong>This claim shows as CLOSED.</strong> This does{' '}
             <strong>NOT</strong> mean the area is open to mineral location. Do not
@@ -101,8 +108,8 @@ export default function ClaimDetailPanel({ claim, onClose }) {
 
         <dl>
           {claim.blm_url ? (
-            <div style={{ marginBottom: '8px' }}>
-              <dt style={{ fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+            <div style={{ marginBottom: '10px' }}>
+              <dt style={{ fontSize: '10px', color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px', fontWeight: 600 }}>
                 BLM Record
               </dt>
               <dd style={{ margin: 0 }}>
@@ -132,8 +139,8 @@ export default function ClaimDetailPanel({ claim, onClose }) {
           <Field label="Last Updated" value={claim.last_seen_at ? claim.last_seen_at.split('T')[0] : null} />
         </dl>
 
-        <div style={{ margin: '16px 0', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
-          <h4 style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: 600, color: '#374151' }}>
+        <div style={{ margin: '16px 0', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
+          <h4 style={{ margin: '0 0 10px', fontSize: '11px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Recent Events
           </h4>
           <ClaimEventLog serialNr={claim.serial_nr} maxItems={5} />
@@ -142,8 +149,10 @@ export default function ClaimDetailPanel({ claim, onClose }) {
         <button
           onClick={() => setRawOpen((v) => !v)}
           style={{
-            background: 'none', border: '1px solid #e5e7eb', borderRadius: '4px',
-            padding: '4px 10px', fontSize: '12px', cursor: 'pointer', color: '#6b7280',
+            background: 'none',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '6px',
+            padding: '4px 10px', fontSize: '12px', cursor: 'pointer', color: '#94a3b8',
             marginBottom: '12px',
           }}
         >
@@ -151,9 +160,11 @@ export default function ClaimDetailPanel({ claim, onClose }) {
         </button>
         {rawOpen && (
           <pre style={{
-            background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '4px',
+            background: '#080f1e',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: '6px',
             padding: '10px', fontSize: '11px', overflow: 'auto', maxHeight: '200px',
-            color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            color: '#94a3b8', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
           }}>
             {JSON.stringify(claim.raw_json, null, 2)}
           </pre>
@@ -163,7 +174,8 @@ export default function ClaimDetailPanel({ claim, onClose }) {
       {/* Footer */}
       <div style={{
         padding: '12px 16px',
-        borderTop: '1px solid #e5e7eb',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        background: '#0d1f35',
         display: 'flex',
         gap: '8px',
       }}>
@@ -172,8 +184,8 @@ export default function ClaimDetailPanel({ claim, onClose }) {
           disabled={addTargetMutation.isPending}
           style={{
             flex: 1,
-            background: '#1e293b', color: '#f1f5f9',
-            border: 'none', borderRadius: '6px', padding: '8px 12px',
+            background: '#2563eb', color: '#ffffff',
+            border: 'none', borderRadius: '8px', padding: '8px 12px',
             fontSize: '13px', fontWeight: 600, cursor: 'pointer',
           }}
         >

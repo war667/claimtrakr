@@ -36,23 +36,23 @@ export default function ClaimEventLog({ serialNr, maxItems = 5 }) {
           display: 'flex',
           gap: '8px',
           padding: '6px 0',
-          borderBottom: '1px solid #f3f4f6',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
           fontSize: '13px',
         }}>
           <span style={{ flexShrink: 0, fontSize: '16px' }}>
             {EVENT_ICONS[evt.event_type] || '📌'}
           </span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 500, color: '#374151' }}>
+            <div style={{ fontWeight: 500, color: '#ffffff' }}>
               {evt.event_type.replace(/_/g, ' ')}
               {evt.event_subtype && (
-                <span style={{ color: '#6b7280', marginLeft: '6px', fontWeight: 400 }}>
+                <span style={{ color: '#94a3b8', marginLeft: '6px', fontWeight: 400 }}>
                   ({evt.event_subtype.replace(/_/g, ' ')})
                 </span>
               )}
             </div>
             {evt.old_value && evt.new_value && (
-              <div style={{ color: '#6b7280', fontSize: '12px' }}>
+              <div style={{ color: '#94a3b8', fontSize: '12px' }}>
                 {evt.old_value} → {evt.new_value}
               </div>
             )}

@@ -16,15 +16,15 @@ export default function DisclaimerBanner() {
 
   return (
     <div style={{
-      background: '#fef3c7',
-      borderBottom: '1px solid #fbbf24',
+      background: 'rgba(245,158,11,0.1)',
+      borderBottom: '1px solid rgba(245,158,11,0.25)',
       padding: '8px 16px',
       display: 'flex',
       alignItems: 'flex-start',
       gap: '8px',
       fontSize: '13px',
       lineHeight: '1.5',
-      color: '#92400e',
+      color: '#fcd34d',
     }}>
       <span style={{ flexShrink: 0, marginTop: '1px' }}>⚠️</span>
       <span style={{ flex: 1 }}>
@@ -39,7 +39,7 @@ export default function DisclaimerBanner() {
           background: 'none',
           border: 'none',
           cursor: 'pointer',
-          color: '#92400e',
+          color: '#fcd34d',
           fontSize: '16px',
           lineHeight: 1,
           padding: '0 2px',

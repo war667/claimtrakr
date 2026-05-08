@@ -24,7 +24,7 @@ export default function AppShell() {
         <main style={{
           flex: 1,
           overflow: 'auto',
-          background: '#f9fafb',
+          background: '#0a1628',
         }}>
           <Outlet />
         </main>

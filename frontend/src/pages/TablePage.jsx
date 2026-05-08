@@ -12,7 +12,9 @@ function FilterBar({ filters, onChange, onReset }) {
   return (
     <div style={{
       display: 'flex', flexWrap: 'wrap', gap: '10px', padding: '12px 16px',
-      background: '#fff', borderBottom: '1px solid #e5e7eb', alignItems: 'flex-end',
+      background: '#0f2039',
+      borderBottom: '1px solid rgba(255,255,255,0.08)',
+      alignItems: 'flex-end',
     }}>
       <div>
         <label style={labelStyle}>State</label>
@@ -57,8 +59,10 @@ function FilterBar({ filters, onChange, onReset }) {
         />
       </div>
       <button onClick={onReset} style={{
-        background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '4px',
-        padding: '5px 12px', fontSize: '13px', cursor: 'pointer', color: '#374151',
+        background: '#0d1f35',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '6px',
+        padding: '5px 12px', fontSize: '13px', cursor: 'pointer', color: '#94a3b8',
       }}>
         Reset
       </button>
@@ -66,8 +70,18 @@ function FilterBar({ filters, onChange, onReset }) {
   );
 }
 
-const labelStyle = { fontSize: '11px', fontWeight: 600, color: '#6b7280', display: 'block', marginBottom: '3px', textTransform: 'uppercase' };
-const selectStyle = { padding: '5px 8px', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '13px', background: '#fff' };
+const labelStyle = {
+  fontSize: '11px', fontWeight: 600, color: '#06b6d4',
+  display: 'block', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.04em',
+};
+const selectStyle = {
+  padding: '5px 8px',
+  border: '1px solid rgba(255,255,255,0.12)',
+  borderRadius: '6px',
+  fontSize: '13px',
+  background: '#0d1f35',
+  color: '#ffffff',
+};
 
 export default function TablePage() {
   const [filters, setFilters] = useState({});
@@ -83,9 +97,7 @@ export default function TablePage() {
   const handleExport = () => {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => { if (v != null) params.append(k, v); });
-    const authStr = btoa(`${import.meta.env.VITE_AUTH_USER || 'admin'}:${import.meta.env.VITE_AUTH_PASS || 'changeme'}`);
     const url = `/api/v1/exports/claims.csv?${params}`;
-    // Build a link with auth — open in new tab, browser will handle basic auth prompt
     window.open(url, '_blank');
   };
 
