@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createTarget } from '../../api/targets';
+import { fetchClaimRaw } from '../../api/claims';
 import StatusBadge from './StatusBadge';
 import ClaimEventLog from './ClaimEventLog';
 import useIsMobile from '../../hooks/useIsMobile';
@@ -30,6 +31,16 @@ export default function ClaimDetailPanel({ claim, onClose }) {
   const [addedMsg, setAddedMsg] = useState('');
 
   const isMobile = useIsMobile();
+
+  const { data: rawRecord, isLoading: rawLoading } = useQuery({
+    queryKey: ['claimRaw', claim.serial_nr],
+    queryFn: () => fetchClaimRaw(claim.serial_nr),
+    enabled: rawOpen && !claim.raw_json,
+    staleTime: 300_000,
+  });
+
+  const rawData = claim.raw_json ?? rawRecord?.raw_json;
+
   const addTargetMutation = useMutation({
     mutationFn: () => createTarget({ serial_nr: claim.serial_nr }),
     onSuccess: (newTarget) => {
@@ -168,7 +179,7 @@ export default function ClaimDetailPanel({ claim, onClose }) {
             padding: '10px', fontSize: '11px', overflow: 'auto', maxHeight: '200px',
             color: '#94a3b8', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
           }}>
-            {JSON.stringify(claim.raw_json, null, 2)}
+            {rawLoading ? 'Loading...' : rawData ? JSON.stringify(rawData, null, 2) : 'No raw data available.'}
           </pre>
         )}
       </div>
