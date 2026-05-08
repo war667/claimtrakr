@@ -24,10 +24,22 @@ const STAKING_CHECKLIST = [
 function Section({ title, children }) {
   return (
     <div style={{
-      background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px',
-      padding: '16px', marginBottom: '16px',
+      background: '#0f2039',
+      border: '1px solid rgba(255,255,255,0.08)',
+      borderRadius: '12px',
+      padding: '16px',
+      marginBottom: '16px',
     }}>
-      <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 700, color: '#374151' }}>{title}</h3>
+      <h3 style={{
+        margin: '0 0 12px',
+        fontSize: '11px',
+        fontWeight: 600,
+        color: '#06b6d4',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      }}>
+        {title}
+      </h3>
       {children}
     </div>
   );
@@ -36,9 +48,9 @@ function Section({ title, children }) {
 function Field({ label, value }) {
   if (!value && value !== 0) return null;
   return (
-    <div style={{ marginBottom: '6px', display: 'grid', gridTemplateColumns: '140px 1fr', gap: '8px' }}>
-      <dt style={{ fontSize: '12px', color: '#9ca3af', margin: 0 }}>{label}</dt>
-      <dd style={{ fontSize: '13px', color: '#111827', margin: 0 }}>{value}</dd>
+    <div style={{ marginBottom: '8px', display: 'grid', gridTemplateColumns: '140px 1fr', gap: '8px' }}>
+      <dt style={{ fontSize: '11px', color: '#4b6079', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</dt>
+      <dd style={{ fontSize: '13px', color: '#ffffff', margin: 0 }}>{value}</dd>
     </div>
   );
 }
@@ -85,7 +97,7 @@ export default function TargetDetailPage() {
     }, 1000);
   };
 
-  if (isLoading) return <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>Loading target...</div>;
+  if (isLoading) return <div style={{ padding: '40px', textAlign: 'center', color: '#4b6079' }}>Loading target...</div>;
   if (error) return <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>Error: {error.message}</div>;
   if (!target) return null;
 
@@ -93,23 +105,42 @@ export default function TargetDetailPage() {
   const ws = WORKFLOW_STATUSES.find((s) => s.key === target.workflow_status);
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
+    <div style={{ height: '100%', overflowY: 'auto', background: '#0a1628' }}>
       <DisclaimerBanner />
-      <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb', background: '#fff', display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+
+      {/* Header */}
+      <div style={{
+        padding: '16px 24px',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        background: '#0f2039',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '16px',
+        flexWrap: 'wrap',
+      }}>
         <button
           onClick={() => navigate('/targets')}
-          style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: '5px', padding: '5px 12px', cursor: 'pointer', fontSize: '13px', color: '#6b7280', flexShrink: 0 }}
+          style={{
+            background: 'none',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '6px',
+            padding: '5px 12px',
+            cursor: 'pointer',
+            fontSize: '13px',
+            color: '#94a3b8',
+            flexShrink: 0,
+          }}
         >
           ← Back
         </button>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: '200px' }}>
           <input
             type="text"
             value={target.internal_name || ''}
             onChange={(e) => updateMutation.mutate({ internal_name: e.target.value })}
             style={{
-              border: 'none', outline: 'none', fontSize: '18px', fontWeight: 700, color: '#111827',
-              background: 'transparent', width: '100%', padding: '0',
+              border: 'none', outline: 'none', fontSize: '18px', fontWeight: 700,
+              color: '#ffffff', background: 'transparent', width: '100%', padding: '0',
             }}
           />
           <div style={{ marginTop: '8px', overflowX: 'auto' }}>
@@ -121,8 +152,14 @@ export default function TargetDetailPage() {
             value={target.workflow_status}
             onChange={(e) => updateMutation.mutate({ workflow_status: e.target.value })}
             style={{
-              border: `1px solid ${ws?.color || '#e5e7eb'}`, borderRadius: '5px', padding: '6px 10px',
-              fontSize: '13px', color: ws?.color || '#374151', fontWeight: 600, cursor: 'pointer', background: '#fff',
+              border: `1px solid ${ws?.color || 'rgba(255,255,255,0.12)'}`,
+              borderRadius: '6px',
+              padding: '6px 10px',
+              fontSize: '13px',
+              color: ws?.color || '#94a3b8',
+              fontWeight: 600,
+              cursor: 'pointer',
+              background: '#0d1f35',
             }}
           >
             {WORKFLOW_STATUSES.map((s) => (
@@ -134,8 +171,13 @@ export default function TargetDetailPage() {
 
       {isApproved && (
         <div style={{
-          margin: '16px 24px 0', background: '#fff7ed', border: '1px solid #f97316',
-          borderRadius: '6px', padding: '12px 16px', fontSize: '13px', color: '#9a3412',
+          margin: '16px 24px 0',
+          background: 'rgba(249,115,22,0.1)',
+          border: '1px solid rgba(249,115,22,0.3)',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          fontSize: '13px',
+          color: '#fdba74',
         }}>
           ⚠️ <strong>APPROVED status is internal only.</strong> Physical staking, county recording,
           and BLM filing require completion of all verification steps. This system does not
@@ -143,7 +185,7 @@ export default function TargetDetailPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '16px', padding: '16px 24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,380px)', gap: '16px', padding: '16px 24px' }}>
         {/* Left column */}
         <div>
           <Section title="Claim Summary">
@@ -154,8 +196,8 @@ export default function TargetDetailPage() {
             <Field label="Location" value={[target.county, target.state].filter(Boolean).join(', ')} />
             <Field label="Acres" value={target.acres} />
             {target.case_status && (
-              <div style={{ marginBottom: '6px', display: 'grid', gridTemplateColumns: '140px 1fr', gap: '8px' }}>
-                <dt style={{ fontSize: '12px', color: '#9ca3af', margin: 0 }}>Claim Status</dt>
+              <div style={{ marginBottom: '8px', display: 'grid', gridTemplateColumns: '140px 1fr', gap: '8px' }}>
+                <dt style={{ fontSize: '11px', color: '#4b6079', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Claim Status</dt>
                 <dd style={{ margin: 0 }}>
                   <StatusBadge status={target.case_status} closedDt={target.closed_dt} />
                 </dd>
@@ -168,12 +210,23 @@ export default function TargetDetailPage() {
           </Section>
 
           <Section title="Staking Packet Checklist (Prepare Manually)">
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '10px', background: '#fef3c7', padding: '8px 10px', borderRadius: '4px' }}>
+            <div style={{
+              fontSize: '12px',
+              color: '#fcd34d',
+              marginBottom: '10px',
+              background: 'rgba(245,158,11,0.1)',
+              border: '1px solid rgba(245,158,11,0.2)',
+              padding: '8px 10px',
+              borderRadius: '6px',
+            }}>
               This is a preparation guide only. ClaimTrakr does not file claims.
             </div>
             {STAKING_CHECKLIST.map((item) => (
-              <label key={item} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0', fontSize: '13px', cursor: 'pointer' }}>
-                <input type="checkbox" style={{ accentColor: '#3b82f6' }} />
+              <label key={item} style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '5px 0', fontSize: '13px', cursor: 'pointer', color: '#94a3b8',
+              }}>
+                <input type="checkbox" style={{ accentColor: '#2563eb', width: '15px', height: '15px' }} />
                 {item}
               </label>
             ))}
@@ -189,49 +242,75 @@ export default function TargetDetailPage() {
               placeholder="Add research notes, observations..."
               rows={6}
               style={{
-                width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb',
-                borderRadius: '5px', fontSize: '13px', resize: 'vertical',
+                width: '100%', padding: '8px 10px',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '6px', fontSize: '13px', resize: 'vertical',
+                background: '#0a1628', color: '#ffffff',
               }}
             />
-            {noteSaved && <div style={{ fontSize: '11px', color: '#10b981', marginTop: '4px' }}>✓ Saved</div>}
+            {noteSaved && <div style={{ fontSize: '11px', color: '#22c55e', marginTop: '4px' }}>✓ Saved</div>}
           </Section>
 
           <Section title="Assignment & Priority">
             <div style={{ marginBottom: '10px' }}>
-              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Assigned To</label>
+              <label style={{
+                fontSize: '11px', color: '#06b6d4', display: 'block', marginBottom: '4px',
+                textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}>
+                Assigned To
+              </label>
               <input
                 type="text"
                 defaultValue={target.assigned_to || ''}
                 onBlur={(e) => updateMutation.mutate({ assigned_to: e.target.value })}
-                style={{ width: '100%', padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '13px' }}
+                style={{
+                  width: '100%', padding: '6px 8px',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: '6px', fontSize: '13px',
+                  background: '#0a1628', color: '#ffffff',
+                }}
               />
             </div>
             <div>
-              <label style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Priority Score (0–100)</label>
+              <label style={{
+                fontSize: '11px', color: '#06b6d4', display: 'block', marginBottom: '4px',
+                textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}>
+                Priority Score (0–100)
+              </label>
               <input
                 type="number"
                 min={0} max={100}
                 defaultValue={target.priority_score || 0}
                 onBlur={(e) => updateMutation.mutate({ priority_score: parseInt(e.target.value) || 0 })}
-                style={{ width: '100%', padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '13px' }}
+                style={{
+                  width: '100%', padding: '6px 8px',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: '6px', fontSize: '13px',
+                  background: '#0a1628', color: '#ffffff',
+                }}
               />
             </div>
           </Section>
 
           <Section title="Status History">
             {history.length === 0 ? (
-              <div style={{ fontSize: '13px', color: '#9ca3af', fontStyle: 'italic' }}>No history yet.</div>
+              <div style={{ fontSize: '13px', color: '#4b6079', fontStyle: 'italic' }}>No history yet.</div>
             ) : (
               <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                 {history.map((h) => (
-                  <div key={h.id} style={{ padding: '6px 0', borderBottom: '1px solid #f3f4f6', fontSize: '12px' }}>
-                    <div style={{ fontWeight: 500, color: '#374151' }}>
+                  <div key={h.id} style={{
+                    padding: '6px 0',
+                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    fontSize: '12px',
+                  }}>
+                    <div style={{ fontWeight: 500, color: '#ffffff' }}>
                       {h.from_status ? `${h.from_status} → ${h.to_status}` : h.to_status}
                     </div>
-                    <div style={{ color: '#9ca3af' }}>
+                    <div style={{ color: '#4b6079' }}>
                       {h.changed_by || 'system'} · {h.changed_at ? format(parseISO(h.changed_at), 'MMM d, yyyy HH:mm') : ''}
                     </div>
-                    {h.notes && <div style={{ color: '#6b7280' }}>{h.notes}</div>}
+                    {h.notes && <div style={{ color: '#94a3b8' }}>{h.notes}</div>}
                   </div>
                 ))}
               </div>

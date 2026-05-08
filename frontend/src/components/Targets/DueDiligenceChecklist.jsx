@@ -23,20 +23,20 @@ function ChecklistItem({ item, targetId }) {
   return (
     <div style={{
       padding: '8px 0',
-      borderBottom: '1px solid #f3f4f6',
-      opacity: item.is_complete ? 0.7 : 1,
+      borderBottom: '1px solid rgba(255,255,255,0.05)',
+      opacity: item.is_complete ? 0.65 : 1,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <input
           type="checkbox"
           checked={item.is_complete}
           onChange={toggle}
-          style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#10b981' }}
+          style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#22c55e' }}
         />
         <span style={{
           flex: 1,
           fontSize: '13px',
-          color: item.is_complete ? '#6b7280' : '#111827',
+          color: item.is_complete ? '#4b6079' : '#ffffff',
           textDecoration: item.is_complete ? 'line-through' : 'none',
         }}>
           {item.task_label}
@@ -45,14 +45,14 @@ function ChecklistItem({ item, targetId }) {
           onClick={() => setNotesOpen((v) => !v)}
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            color: '#9ca3af', fontSize: '12px', padding: '0 4px',
+            color: '#4b6079', fontSize: '12px', padding: '0 4px',
           }}
           title="Add notes"
         >
           {notesOpen ? '▲' : '▼'}
         </button>
         {item.is_complete && (
-          <span style={{ fontSize: '11px', color: '#10b981' }}>✓ Done</span>
+          <span style={{ fontSize: '11px', color: '#22c55e' }}>✓ Done</span>
         )}
       </div>
       {notesOpen && (
@@ -64,14 +64,16 @@ function ChecklistItem({ item, targetId }) {
             rows={2}
             style={{
               flex: 1, fontSize: '12px', padding: '4px 8px',
-              border: '1px solid #e5e7eb', borderRadius: '4px', resize: 'vertical',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '6px', resize: 'vertical',
+              background: '#0a1628', color: '#ffffff',
             }}
           />
           <button
             onClick={saveNotes}
             disabled={mutation.isPending}
             style={{
-              background: '#1e293b', color: '#fff', border: 'none', borderRadius: '4px',
+              background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px',
               padding: '4px 10px', fontSize: '12px', cursor: 'pointer', alignSelf: 'flex-start',
             }}
           >
@@ -89,7 +91,7 @@ export default function DueDiligenceChecklist({ targetId }) {
     queryFn: () => fetchChecklist(targetId),
   });
 
-  if (isLoading) return <div style={{ color: '#9ca3af', fontSize: '13px' }}>Loading checklist...</div>;
+  if (isLoading) return <div style={{ color: '#4b6079', fontSize: '13px' }}>Loading checklist...</div>;
 
   const complete = items.filter((i) => i.is_complete).length;
   const total = items.length;
@@ -98,19 +100,20 @@ export default function DueDiligenceChecklist({ targetId }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-        <span style={{ fontSize: '13px', color: '#6b7280' }}>
+        <span style={{ fontSize: '13px', color: '#94a3b8' }}>
           {complete} of {total} complete
         </span>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: pct === 100 ? '#10b981' : '#374151' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: pct === 100 ? '#22c55e' : '#94a3b8' }}>
           {pct}%
         </span>
       </div>
       <div style={{
-        height: '6px', background: '#e5e7eb', borderRadius: '3px', marginBottom: '12px', overflow: 'hidden',
+        height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px',
+        marginBottom: '12px', overflow: 'hidden',
       }}>
         <div style={{
           height: '100%', width: `${pct}%`,
-          background: pct === 100 ? '#10b981' : '#3b82f6',
+          background: pct === 100 ? '#22c55e' : '#2563eb',
           transition: 'width 0.3s', borderRadius: '3px',
         }} />
       </div>
