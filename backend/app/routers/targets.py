@@ -54,6 +54,41 @@ def _row_to_target(row) -> TargetSchema:
     )
 
 
+@router.get("/report")
+async def targets_report(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(text("""
+        SELECT
+            t.id, t.serial_nr, t.workflow_status, t.assigned_to,
+            t.priority_label, t.notes, t.internal_name, t.created_at,
+            c.claim_name, c.claim_type, c.claimant_name, c.state, c.county,
+            c.case_status, c.closed_dt::text, c.acres::text,
+            COUNT(d.id) FILTER (WHERE d.id IS NOT NULL) AS checklist_total,
+            COUNT(d.id) FILTER (WHERE d.is_complete = true) AS checklist_complete
+        FROM targets t
+        JOIN claims c ON c.serial_nr = t.serial_nr
+        LEFT JOIN due_diligence_items d ON d.target_id = t.id
+        WHERE t.workflow_status != 'archived'
+        GROUP BY t.id, t.serial_nr, t.workflow_status, t.assigned_to,
+                 t.priority_label, t.notes, t.internal_name, t.created_at,
+                 c.claim_name, c.claim_type, c.claimant_name, c.state, c.county,
+                 c.case_status, c.closed_dt, c.acres
+        ORDER BY t.created_at DESC
+    """))
+    rows = result.fetchall()
+    return [
+        {
+            "id": r[0], "serial_nr": r[1], "workflow_status": r[2],
+            "assigned_to": r[3], "priority_label": r[4], "notes": r[5],
+            "internal_name": r[6], "created_at": str(r[7]) if r[7] else None,
+            "claim_name": r[8], "claim_type": r[9], "claimant_name": r[10],
+            "state": r[11], "county": r[12], "case_status": r[13],
+            "closed_dt": r[14], "acres": float(r[15]) if r[15] else None,
+            "checklist_total": int(r[16]), "checklist_complete": int(r[17]),
+        }
+        for r in rows
+    ]
+
+
 @router.get("", response_model=PaginatedTargets)
 async def list_targets(
     workflow_status: Optional[str] = None,

@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { to: '/map',       icon: '🗺',  label: 'Map' },
   { to: '/table',     icon: '📋', label: 'Claims Table' },
   { to: '/targets',   icon: '🎯', label: 'Targets' },
+  { to: '/report',    icon: '📊', label: 'Report' },
   { to: '/ingestion', icon: '⬇️', label: 'Ingestion' },
 ];
 

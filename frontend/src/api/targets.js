@@ -3,6 +3,9 @@ import client, { uploadClient } from './client';
 export const fetchTargets = (params) =>
   client.get('/api/v1/targets', { params }).then((r) => r.data);
 
+export const fetchTargetsReport = () =>
+  client.get('/api/v1/targets/report').then((r) => r.data);
+
 export const createTarget = (body) =>
   client.post('/api/v1/targets', body).then((r) => r.data);
 

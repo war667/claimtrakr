@@ -7,6 +7,7 @@ import TablePage from './pages/TablePage';
 import TargetsPage from './pages/TargetsPage';
 import IngestionPage from './pages/IngestionPage';
 import TargetDetailPage from './components/Targets/TargetDetailPage';
+import ReportPage from './pages/ReportPage';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="targets" element={<TargetsPage />} />
         <Route path="targets/:id" element={<TargetDetailPage />} />
         <Route path="ingestion" element={<IngestionPage />} />
+        <Route path="report" element={<ReportPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
