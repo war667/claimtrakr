@@ -47,6 +47,8 @@ services:
         VITE_AUTH_PASS: ${VITE_AUTH_PASS}
     ports:
       - "8084:80"
+    volumes:
+      - ./logs/nginx:/var/log/nginx
     depends_on:
       - backend
     restart: unless-stopped
