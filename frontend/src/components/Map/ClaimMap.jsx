@@ -35,10 +35,11 @@ function MapLegend() {
   return (
     <div style={{
       position: 'absolute', bottom: '30px', right: '10px', zIndex: 1000,
-      background: 'rgba(255,255,255,0.95)', borderRadius: '6px',
-      boxShadow: '0 1px 6px rgba(0,0,0,0.15)', padding: '10px 14px', fontSize: '12px',
+      background: '#0f2039', border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+      padding: '10px 14px', fontSize: '12px',
     }}>
-      <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '11px', textTransform: 'uppercase', color: '#6b7280' }}>
+      <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#06b6d4' }}>
         Claim Status
       </div>
       {[
@@ -48,8 +49,8 @@ function MapLegend() {
         { color: '#eab308', label: 'Closed ≤ 90 days' },
         { color: '#9ca3af', label: 'Closed (older)' },
       ].map(({ color, label }) => (
-        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-          <span style={{ width: '12px', height: '12px', background: color, display: 'inline-block', borderRadius: '2px', opacity: 0.8 }} />
+        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px', color: '#94a3b8' }}>
+          <span style={{ width: '12px', height: '12px', background: color, display: 'inline-block', borderRadius: '2px', flexShrink: 0 }} />
           {label}
         </div>
       ))}
