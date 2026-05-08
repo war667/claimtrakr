@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { fetchTargets } from '../api/targets';
@@ -8,6 +8,64 @@ import { CLAIM_TYPES } from '../constants';
 import client from '../api/client';
 
 const STATES = ['UT', 'NV'];
+
+const PRESETS = ['', '1', '7', '30', '90', '180', 'custom'];
+
+function DaysFilter({ label, value, onChange: onChangeProp }) {
+  const [showCustom, setShowCustom] = useState(false);
+  const [customVal, setCustomVal] = useState('');
+  const inputRef = useRef(null);
+
+  const currentPreset = value ? (PRESETS.includes(String(value)) && String(value) !== '' ? String(value) : 'custom') : '';
+
+  const handleSelect = (e) => {
+    const v = e.target.value;
+    if (v === 'custom') {
+      setShowCustom(true);
+      setCustomVal(value && !PRESETS.slice(1, -1).includes(String(value)) ? String(value) : '');
+      setTimeout(() => inputRef.current?.focus(), 50);
+    } else {
+      setShowCustom(false);
+      onChangeProp(v ? parseInt(v) : undefined);
+    }
+  };
+
+  const handleCustomCommit = () => {
+    const n = parseInt(customVal);
+    if (n > 0) onChangeProp(n);
+    else { setShowCustom(false); onChangeProp(undefined); }
+  };
+
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        <select value={currentPreset} onChange={handleSelect} style={selectStyle}>
+          <option value="">Any</option>
+          <option value="1">1 day</option>
+          <option value="7">7 days</option>
+          <option value="30">30 days</option>
+          <option value="90">90 days</option>
+          <option value="180">180 days</option>
+          <option value="custom">Custom…</option>
+        </select>
+        {showCustom && (
+          <input
+            ref={inputRef}
+            type="number"
+            min="1"
+            value={customVal}
+            onChange={(e) => setCustomVal(e.target.value)}
+            onBlur={handleCustomCommit}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCustomCommit(); if (e.key === 'Escape') { setShowCustom(false); onChangeProp(undefined); } }}
+            placeholder="days"
+            style={{ ...selectStyle, width: '64px' }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
 function FilterBar({ filters, onChange, onReset }) {
   return (
@@ -39,26 +97,16 @@ function FilterBar({ filters, onChange, onReset }) {
           {CLAIM_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
         </select>
       </div>
-      <div>
-        <label style={labelStyle}>Closed Within</label>
-        <select value={filters.closed_within_days || ''} onChange={(e) => onChange({ ...filters, closed_within_days: e.target.value ? parseInt(e.target.value) : undefined })} style={selectStyle}>
-          <option value="">Any</option>
-          <option value="7">7 days</option>
-          <option value="30">30 days</option>
-          <option value="90">90 days</option>
-          <option value="180">180 days</option>
-        </select>
-      </div>
-      <div>
-        <label style={labelStyle}>Changed Within</label>
-        <select value={filters.changed_within_days || ''} onChange={(e) => onChange({ ...filters, changed_within_days: e.target.value ? parseInt(e.target.value) : undefined })} style={selectStyle}>
-          <option value="">Any</option>
-          <option value="1">24 hours</option>
-          <option value="7">7 days</option>
-          <option value="30">30 days</option>
-          <option value="90">90 days</option>
-        </select>
-      </div>
+      <DaysFilter
+        label="Closed Within"
+        value={filters.closed_within_days}
+        onChange={(v) => onChange({ ...filters, closed_within_days: v })}
+      />
+      <DaysFilter
+        label="Changed Within"
+        value={filters.changed_within_days}
+        onChange={(v) => onChange({ ...filters, changed_within_days: v })}
+      />
       <div>
         <label style={labelStyle}>Search</label>
         <input
