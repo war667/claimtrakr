@@ -44,6 +44,7 @@ class ClaimSchema(BaseModel):
     is_duplicate: Optional[bool] = None
     needs_review: Optional[bool] = None
     raw_json: Optional[Any] = None
+    last_event_at: Optional[datetime] = None
 
 
 class PaginatedClaims(BaseModel):

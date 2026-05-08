@@ -31,11 +31,16 @@ const TH_STYLE = {
 
 export default function ClaimsTable({ filters, targetSerialNrs = [], onRowClick, onExport }) {
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState('last_seen_at');
+  const [sortBy, setSortBy] = useState(filters?.changed_within_days ? 'last_event_at' : 'last_seen_at');
   const [sortDir, setSortDir] = useState('desc');
   const PAGE_SIZE = 100;
 
-  useEffect(() => { setPage(1); }, [filters]);
+  useEffect(() => {
+    setPage(1);
+    if (filters?.changed_within_days) {
+      setSortBy('last_event_at');
+    }
+  }, [filters]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['claims', filters, page, sortBy, sortDir],
@@ -115,7 +120,7 @@ export default function ClaimsTable({ filters, targetSerialNrs = [], onRowClick,
                 ['state', 'State'],
                 ['claim_type', 'Type'],
                 ['case_status', 'Status'],
-                ['last_seen_at', 'Last Seen'],
+                ['last_event_at', 'Last Changed'],
                 ['acres', 'Acres'],
               ].map(([col, label]) => (
                 <th key={col} style={TH_STYLE} onClick={() => handleSort(col)}>
@@ -145,7 +150,7 @@ export default function ClaimsTable({ filters, targetSerialNrs = [], onRowClick,
                 <td style={COL_STYLE}>
                   <StatusBadge status={claim.case_status} closedDt={claim.closed_dt} />
                 </td>
-                <td style={COL_STYLE}>{claim.last_seen_at ? claim.last_seen_at.slice(0, 10) : '—'}</td>
+                <td style={COL_STYLE}>{claim.last_event_at ? claim.last_event_at.slice(0, 10) : '—'}</td>
                 <td style={COL_STYLE}>
                   {claim.acres ? Number(claim.acres).toFixed(1) : '—'}
                 </td>

@@ -18,13 +18,14 @@ router = APIRouter(dependencies=[Depends(verify_credentials)])
 VALID_SORT_COLUMNS = {
     "closed_dt", "serial_nr", "claimant_name", "county", "state",
     "claim_type", "acres", "first_seen_at", "last_seen_at", "case_status",
+    "last_event_at",
 }
 
 
 def _build_where(
     state=None, county=None, status=None, claim_type=None,
-    closed_within_days=None, disposition_cd=None, search=None,
-    bbox=None,
+    closed_within_days=None, changed_within_days=None,
+    disposition_cd=None, search=None, bbox=None,
 ):
     conditions = ["1=1"]
     params = {}
@@ -65,6 +66,16 @@ def _build_where(
                   AND ce.detected_at >= NOW() - INTERVAL '{days} days'
             )
         """)
+    if changed_within_days:
+        days = int(changed_within_days)
+        conditions.append(f"""
+            EXISTS (
+                SELECT 1 FROM claim_events ce
+                WHERE ce.serial_nr = c.serial_nr
+                  AND ce.event_type IN ('status_changed', 'new_claim', 'claimant_changed')
+                  AND ce.detected_at >= NOW() - INTERVAL '{days} days'
+            )
+        """)
     if disposition_cd:
         conditions.append("c.disposition_cd = :disposition_cd")
         params["disposition_cd"] = disposition_cd
@@ -88,25 +99,43 @@ async def list_claims(
     status: Optional[str] = None,
     claim_type: Optional[str] = None,
     closed_within_days: Optional[int] = None,
+    changed_within_days: Optional[int] = None,
     disposition_cd: Optional[str] = None,
     search: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1, le=500),
-    sort_by: str = Query("closed_dt"),
+    sort_by: str = Query("last_seen_at"),
     sort_dir: str = Query("desc"),
     db: AsyncSession = Depends(get_db),
 ):
     if sort_by not in VALID_SORT_COLUMNS:
-        sort_by = "closed_dt"
+        sort_by = "last_seen_at"
     sort_dir = "DESC" if sort_dir.lower() == "desc" else "ASC"
 
     where_clause, params = _build_where(
         state=state, county=county, status=status, claim_type=claim_type,
-        closed_within_days=closed_within_days, disposition_cd=disposition_cd,
-        search=search,
+        closed_within_days=closed_within_days, changed_within_days=changed_within_days,
+        disposition_cd=disposition_cd, search=search,
     )
 
-    count_sql = text(f"SELECT COUNT(*) FROM claims c WHERE {where_clause}")
+    needs_event_join = sort_by == "last_event_at" or changed_within_days is not None
+
+    if needs_event_join:
+        join_sql = """
+            LEFT JOIN (
+                SELECT serial_nr, MAX(detected_at) AS last_event_at
+                FROM claim_events
+                GROUP BY serial_nr
+            ) evt ON evt.serial_nr = c.serial_nr
+        """
+        event_col = ", evt.last_event_at"
+        order_col = "evt.last_event_at" if sort_by == "last_event_at" else f"c.{sort_by}"
+    else:
+        join_sql = ""
+        event_col = ", NULL::timestamptz AS last_event_at"
+        order_col = f"c.{sort_by}"
+
+    count_sql = text(f"SELECT COUNT(*) FROM claims c {join_sql} WHERE {where_clause}")
     count_result = await db.execute(count_sql, params)
     total = count_result.scalar() or 0
 
@@ -121,10 +150,10 @@ async def list_claims(
             c.last_action_dt, c.blm_url, c.source_layer, c.geom_source,
             c.geom_confidence, c.first_seen_at, c.last_seen_at, c.last_run_id,
             c.prev_status, c.prev_disp_cd, c.prev_claimant,
-            c.is_duplicate, c.needs_review, c.raw_json
-        FROM claims c
+            c.is_duplicate, c.needs_review, c.raw_json{event_col}
+        FROM claims c {join_sql}
         WHERE {where_clause}
-        ORDER BY c.{sort_by} {sort_dir} NULLS LAST
+        ORDER BY {order_col} {sort_dir} NULLS LAST
         LIMIT :limit OFFSET :offset
     """)
     params["limit"] = page_size
@@ -146,7 +175,7 @@ async def list_claims(
             geom_confidence=row[27], first_seen_at=row[28], last_seen_at=row[29],
             last_run_id=row[30], prev_status=row[31], prev_disp_cd=row[32],
             prev_claimant=row[33], is_duplicate=row[34], needs_review=row[35],
-            raw_json=row[36],
+            raw_json=row[36], last_event_at=row[37],
         ))
 
     return PaginatedClaims(total=total, page=page, page_size=page_size, items=items)

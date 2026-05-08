@@ -50,6 +50,16 @@ function FilterBar({ filters, onChange, onReset }) {
         </select>
       </div>
       <div>
+        <label style={labelStyle}>Changed Within</label>
+        <select value={filters.changed_within_days || ''} onChange={(e) => onChange({ ...filters, changed_within_days: e.target.value ? parseInt(e.target.value) : undefined })} style={selectStyle}>
+          <option value="">Any</option>
+          <option value="1">24 hours</option>
+          <option value="7">7 days</option>
+          <option value="30">30 days</option>
+          <option value="90">90 days</option>
+        </select>
+      </div>
+      <div>
         <label style={labelStyle}>Search</label>
         <input
           type="text"
@@ -90,6 +100,7 @@ export default function TablePage() {
     const f = {};
     if (searchParams.get('status')) f.status = searchParams.get('status');
     if (searchParams.get('closed_within_days')) f.closed_within_days = parseInt(searchParams.get('closed_within_days'));
+    if (searchParams.get('changed_within_days')) f.changed_within_days = parseInt(searchParams.get('changed_within_days'));
     if (searchParams.get('state')) f.state = searchParams.get('state');
     return f;
   });
