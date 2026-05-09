@@ -20,7 +20,9 @@ SESSION_TTL_SECONDS = 24 * 3600
 
 async def _has_any_users(db: AsyncSession) -> bool:
     from app.models.targets import User
-    result = await db.execute(select(User.id).limit(1))
+    result = await db.execute(
+        select(User.id).where(User.password_hash.isnot(None)).limit(1)
+    )
     return result.fetchone() is not None
 
 
