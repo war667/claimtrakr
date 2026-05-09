@@ -261,12 +261,13 @@ async def export_kml(
     closed_within_days: Optional[int] = None,
     disposition_cd: Optional[str] = None,
     search: Optional[str] = None,
+    bbox: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     where_clause, params = _build_where(
         state=state, county=county, status=status, claim_type=claim_type,
         closed_within_days=closed_within_days, disposition_cd=disposition_cd,
-        search=search,
+        search=search, bbox=bbox,
     )
 
     sql = text(f"""

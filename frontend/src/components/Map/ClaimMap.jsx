@@ -195,10 +195,16 @@ export default function ClaimMap({ filters, onFeatureClick }) {
         <button
           onClick={async () => {
             setExporting(true);
-            try { await downloadKml(queryParams); } finally { setExporting(false); }
+            try {
+              const bounds = map.current?.getBounds();
+              const bbox = bounds
+                ? `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`
+                : undefined;
+              await downloadKml({ ...queryParams, ...(bbox ? { bbox } : {}) });
+            } finally { setExporting(false); }
           }}
           disabled={exporting}
-          title="Export all filtered claims as KML for onX Maps"
+          title="Export claims visible in current map view as KML for onX Maps"
           style={{
             background: exporting ? '#334155' : '#2563eb',
             color: '#fff', border: 'none', borderRadius: '8px',
@@ -208,7 +214,7 @@ export default function ClaimMap({ filters, onFeatureClick }) {
             whiteSpace: 'nowrap',
           }}
         >
-          {exporting ? 'Exporting...' : '⬇ Export KML'}
+          {exporting ? 'Exporting...' : '⬇ Export Visible KML'}
         </button>
       </div>
 
