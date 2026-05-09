@@ -83,6 +83,8 @@ export default function TargetDetailPage() {
     },
   });
 
+  const isMobile = useIsMobile();
+
   useEffect(() => {
     if (target) setNotes(target.notes || '');
   }, [target?.id]);
@@ -102,7 +104,6 @@ export default function TargetDetailPage() {
   if (error) return <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>Error: {error.message}</div>;
   if (!target) return null;
 
-  const isMobile = useIsMobile();
   const isApproved = target.workflow_status === 'approved';
   const ws = WORKFLOW_STATUSES.find((s) => s.key === target.workflow_status);
 
