@@ -1,8 +1,10 @@
 import json
 import logging
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import text, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -248,6 +250,105 @@ async def claims_geojson(
         })
 
     return {"type": "FeatureCollection", "features": features}
+
+
+@router.get("/export/kml")
+async def export_kml(
+    state: Optional[str] = None,
+    county: Optional[str] = None,
+    status: Optional[str] = None,
+    claim_type: Optional[str] = None,
+    closed_within_days: Optional[int] = None,
+    disposition_cd: Optional[str] = None,
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    where_clause, params = _build_where(
+        state=state, county=county, status=status, claim_type=claim_type,
+        closed_within_days=closed_within_days, disposition_cd=disposition_cd,
+        search=search,
+    )
+
+    sql = text(f"""
+        SELECT
+            c.serial_nr, c.claim_name, c.claimant_name,
+            c.state, c.county, c.acres, c.case_status,
+            c.closed_dt, ST_AsGeoJSON(c.geom) as geojson
+        FROM claims c
+        WHERE {where_clause}
+          AND c.geom IS NOT NULL
+        ORDER BY c.serial_nr
+    """)
+    result = await db.execute(sql, params)
+    rows = result.fetchall()
+
+    def escape(s):
+        return str(s or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def ring_coords(ring):
+        return ' '.join(f"{lon},{lat},0" for lon, lat in ring)
+
+    def placemark(row):
+        serial_nr, claim_name, claimant_name, state, county, acres, case_status, closed_dt, geojson_str = row
+        try:
+            geom = json.loads(geojson_str)
+        except Exception:
+            return ''
+
+        desc_parts = [
+            claim_name    and f"Name: {claim_name}",
+            claimant_name and f"Claimant: {claimant_name}",
+            case_status   and f"Status: {case_status}",
+            county        and f"County: {county}, {state}",
+            acres         and f"Acres: {acres}",
+            closed_dt     and f"Closed: {closed_dt}",
+        ]
+        desc = '&#10;'.join(escape(p) for p in desc_parts if p)
+
+        if geom['type'] == 'Polygon':
+            rings = [geom['coordinates'][0]]
+        elif geom['type'] == 'MultiPolygon':
+            rings = [poly[0] for poly in geom['coordinates']]
+        else:
+            return ''
+
+        polys = ''.join(
+            f"<Polygon><outerBoundaryIs><LinearRing>"
+            f"<coordinates>{ring_coords(r)}</coordinates>"
+            f"</LinearRing></outerBoundaryIs></Polygon>"
+            for r in rings
+        )
+        geometry = f"<MultiGeometry>{polys}</MultiGeometry>" if len(rings) > 1 else polys
+
+        return (
+            f"<Placemark>"
+            f"<name>{escape(serial_nr)}</name>"
+            f"<description>{desc}</description>"
+            f"{geometry}"
+            f"</Placemark>\n"
+        )
+
+    def generate():
+        today = date.today().isoformat()
+        yield (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<kml xmlns="http://www.opengis.net/kml/2.2">\n'
+            '<Document>\n'
+            f'<name>ClaimTrakr Export {today}</name>\n'
+        )
+        for row in rows:
+            pm = placemark(row)
+            if pm:
+                yield pm
+        yield '</Document>\n</kml>\n'
+
+    today = date.today().isoformat()
+    filename = f"claimtrakr_{today}.kml"
+    return StreamingResponse(
+        generate(),
+        media_type='application/vnd.google-earth.kml+xml',
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{serial_nr}/events", response_model=list)
