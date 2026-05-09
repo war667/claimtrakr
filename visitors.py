@@ -151,13 +151,12 @@ def main():
     if args.exclude:
         exclude.update(args.exclude.split(","))
 
-    since = datetime.now(timezone.utc)
-    print(f"Watching {LOG_FILE} from {to_mountain(since.isoformat())} (excluding: {', '.join(exclude)}) ...")
+    print(f"Watching {LOG_FILE} (all history, excluding: {', '.join(exclude)}) ...")
     time.sleep(1)
 
     try:
         while True:
-            visitors = parse_log(LOG_FILE, exclude, since=since)
+            visitors = parse_log(LOG_FILE, exclude, since=None)
             render(visitors, args.interval)
             time.sleep(args.interval)
     except KeyboardInterrupt:
