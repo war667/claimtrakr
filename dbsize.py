@@ -35,13 +35,14 @@ def get_env():
 
 TABLE_SQL = """
 SELECT
-    relname AS table_name,
-    pg_size_pretty(pg_total_relation_size(relid)) AS total,
-    pg_size_pretty(pg_relation_size(relid)) AS data,
-    pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) AS indexes,
-    to_char(reltuples::bigint, 'FM999,999,999') AS est_rows
-FROM pg_catalog.pg_statio_user_tables
-ORDER BY pg_total_relation_size(relid) DESC;
+    s.relname AS table_name,
+    pg_size_pretty(pg_total_relation_size(s.relid)) AS total,
+    pg_size_pretty(pg_relation_size(s.relid)) AS data,
+    pg_size_pretty(pg_total_relation_size(s.relid) - pg_relation_size(s.relid)) AS indexes,
+    to_char(st.n_live_tup, 'FM999,999,999') AS est_rows
+FROM pg_catalog.pg_statio_user_tables s
+JOIN pg_stat_user_tables st ON st.relid = s.relid
+ORDER BY pg_total_relation_size(s.relid) DESC;
 """
 
 DB_SQL = """
@@ -50,8 +51,8 @@ SELECT pg_size_pretty(pg_database_size(current_database())) AS db_total;
 
 BLOAT_SQL = """
 SELECT
-    schemaname, tablename,
-    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS total,
+    schemaname, relname,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) AS total,
     n_dead_tup AS dead_rows,
     n_live_tup AS live_rows
 FROM pg_stat_user_tables
@@ -115,7 +116,7 @@ def main():
             print("  " + "-" * 60)
             for line in bloat_out.splitlines():
                 parts = [p.strip() for p in line.split("|")]
-                if len(parts) == 5 and parts[1] not in ("tablename", ""):
+                if len(parts) == 5 and parts[1] not in ("relname", ""):
                     print(f"  {parts[1]:<30} dead={int(parts[3]):>10,}  live={int(parts[4]):>10,}")
 
     print()
