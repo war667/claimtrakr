@@ -1,7 +1,6 @@
 import secrets
-import uuid
 import logging
-from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,9 +15,6 @@ security = HTTPBasic()
 
 def _verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
-
-SESSION_COOKIE = "ct_session"
-SESSION_TTL_SECONDS = 24 * 3600
 
 
 async def _has_any_users(db: AsyncSession) -> bool:
@@ -41,31 +37,22 @@ async def _find_active_user(username: str, db: AsyncSession):
     return result.scalar_one_or_none()
 
 
-async def _record_login(request: Request, response: Response, username: str, db: AsyncSession):
-    session_id = request.cookies.get(SESSION_COOKIE)
-    if session_id:
-        return  # existing session, already recorded
-    session_id = str(uuid.uuid4())
+async def record_login_event(request: Request, username: str, db: AsyncSession):
     forwarded = request.headers.get("X-Forwarded-For")
     ip = forwarded.split(",")[0].strip() if forwarded else (
         request.client.host if request.client else None
     )
     from app.models.targets import LoginEvent
-    db.add(LoginEvent(username=username, ip_address=ip, session_id=session_id))
+    db.add(LoginEvent(username=username, ip_address=ip))
     try:
         await db.commit()
     except Exception:
         await db.rollback()
-    response.set_cookie(
-        SESSION_COOKIE, session_id,
-        max_age=SESSION_TTL_SECONDS,
-        httponly=True, samesite="lax",
-    )
+        logger.warning("Failed to record login event for %s", username)
 
 
 async def verify_credentials(
     request: Request,
-    response: Response,
     credentials: HTTPBasicCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> str:
@@ -96,7 +83,6 @@ async def verify_credentials(
                 headers={"WWW-Authenticate": "Basic"},
             )
 
-    await _record_login(request, response, username, db)
     return username
 
 
@@ -106,7 +92,6 @@ async def require_admin(
 ) -> str:
     has_users = await _has_any_users(db)
     if not has_users:
-        # env-var user is the superadmin when no DB users exist
         if username == settings.BASIC_AUTH_USER:
             return username
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")

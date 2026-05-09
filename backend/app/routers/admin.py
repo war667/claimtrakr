@@ -1,13 +1,13 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 import bcrypt
 from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import require_admin, verify_credentials, _has_any_users, _find_active_user
+from app.auth import require_admin, verify_credentials, _has_any_users, _find_active_user, record_login_event
 from app.database import get_db
 from app.config import settings
 
@@ -35,6 +35,7 @@ class UserUpdateSchema(BaseModel):
 
 @me_router.get("/me")
 async def me(
+    request: Request,
     username: str = Depends(verify_credentials),
     db: AsyncSession = Depends(get_db),
 ):
@@ -44,6 +45,7 @@ async def me(
     else:
         user = await _find_active_user(username, db)
         is_admin = bool(user and user.is_admin)
+    await record_login_event(request, username, db)
     return {"username": username, "is_admin": is_admin}
 
 
