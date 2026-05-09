@@ -77,8 +77,9 @@ function applyDarkTheme(map) {
         }
       } else if (type === 'symbol') {
         try { map.setPaintProperty(id, 'text-color', '#c8e6f0'); } catch (_) {}
-        try { map.setPaintProperty(id, 'text-halo-color', '#071220'); } catch (_) {}
-        try { map.setPaintProperty(id, 'text-halo-width', 1.5); } catch (_) {}
+        try { map.setPaintProperty(id, 'text-halo-color', 'rgba(7,18,32,0.85)'); } catch (_) {}
+        try { map.setPaintProperty(id, 'text-halo-width', 2); } catch (_) {}
+        try { map.setPaintProperty(id, 'icon-color', '#c8e6f0'); } catch (_) {}
       }
     } catch (_) {}
   }
@@ -147,6 +148,13 @@ export default function ClaimMap({ filters, onFeatureClick }) {
 
     map.current.on('load', () => {
       applyDarkTheme(map.current);
+      // Second pass: force all label layers readable regardless of style expressions
+      for (const layer of map.current.getStyle().layers) {
+        if (layer.type !== 'symbol') continue;
+        try { map.current.setPaintProperty(layer.id, 'text-color', '#c8e6f0'); } catch (_) {}
+        try { map.current.setPaintProperty(layer.id, 'text-halo-color', 'rgba(7,18,32,0.9)'); } catch (_) {}
+        try { map.current.setPaintProperty(layer.id, 'text-halo-width', 2); } catch (_) {}
+      }
 
       map.current.addSource('claims', {
         type: 'geojson',
@@ -169,7 +177,7 @@ export default function ClaimMap({ filters, onFeatureClick }) {
         source: 'claims',
         paint: {
           'line-color': '#ffffff',
-          'line-width': 2,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.4, 10, 1.2, 13, 2, 16, 3],
           'line-opacity': 0.85,
         },
       });
