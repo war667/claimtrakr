@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,8 @@ from app.auth import require_admin, verify_credentials, _has_any_users, _find_ac
 from app.database import get_db
 from app.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def _hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
 # /me is accessible to any authenticated user
 me_router = APIRouter()
@@ -71,7 +72,7 @@ async def create_user(body: UserCreateSchema, db: AsyncSession = Depends(get_db)
         raise HTTPException(status_code=400, detail="Username already exists")
     user = User(
         username=body.username,
-        password_hash=pwd_context.hash(body.password),
+        password_hash=_hash_password(body.password),
         is_admin=body.is_admin,
     )
     db.add(user)
@@ -87,7 +88,7 @@ async def update_user(user_id: int, body: UserUpdateSchema, db: AsyncSession = D
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if body.password:
-        user.password_hash = pwd_context.hash(body.password)
+        user.password_hash = _hash_password(body.password)
     if body.is_admin is not None:
         user.is_admin = body.is_admin
     if body.is_active is not None:

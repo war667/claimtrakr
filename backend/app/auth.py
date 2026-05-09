@@ -3,7 +3,7 @@ import uuid
 import logging
 from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -12,7 +12,10 @@ from app.database import get_db
 
 logger = logging.getLogger(__name__)
 security = HTTPBasic()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def _verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 SESSION_COOKIE = "ct_session"
 SESSION_TTL_SECONDS = 24 * 3600
@@ -69,7 +72,7 @@ async def verify_credentials(
 
     if has_users:
         user = await _find_active_user(username, db)
-        if not user or not pwd_context.verify(password, user.password_hash):
+        if not user or not _verify_password(password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
