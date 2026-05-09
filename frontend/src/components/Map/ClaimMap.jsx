@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { differenceInDays, parseISO } from 'date-fns';
 import { fetchClaimsGeoJSON } from '../../api/claims';
 
-const STYLE_URL = 'https://tiles.openfreemap.org/styles/fiord-color';
+const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
 function getFeatureColor(props) {
   if (props.case_status === 'ACTIVE') return '#22c55e';
