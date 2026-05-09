@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/targets',   icon: '🎯', label: 'Targets' },
   { to: '/report',    icon: '📊', label: 'Report' },
   { to: '/ingestion', icon: '⬇️', label: 'Ingestion' },
+  { to: '/admin',     icon: '⚙️', label: 'Admin' },
 ];
 
 export default function Sidebar({ onNavClick }) {

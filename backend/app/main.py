@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.scheduler import scheduler, setup_scheduler
 from app.routers import claims, ingest, targets, exports, reference
+from app.routers.admin import router as admin_router, me_router
 
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO))
 logger = logging.getLogger(__name__)
@@ -41,6 +42,8 @@ app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["ingestion"])
 app.include_router(targets.router, prefix="/api/v1/targets", tags=["targets"])
 app.include_router(exports.router, prefix="/api/v1/exports", tags=["exports"])
 app.include_router(reference.router, prefix="/api/v1/ref", tags=["reference"])
+app.include_router(me_router, prefix="/api/v1/admin", tags=["admin"])
+app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
 
 
 @app.get("/health")

@@ -8,6 +8,7 @@ import TargetsPage from './pages/TargetsPage';
 import IngestionPage from './pages/IngestionPage';
 import TargetDetailPage from './components/Targets/TargetDetailPage';
 import ReportPage from './pages/ReportPage';
+import AdminPage from './pages/AdminPage';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="targets/:id" element={<TargetDetailPage />} />
         <Route path="ingestion" element={<IngestionPage />} />
         <Route path="report" element={<ReportPage />} />
+        <Route path="admin" element={<AdminPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
