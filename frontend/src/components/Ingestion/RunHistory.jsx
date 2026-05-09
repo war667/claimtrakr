@@ -112,7 +112,10 @@ export default function RunHistory() {
   const { data, isLoading } = useQuery({
     queryKey: ['ingestionRuns', page, statusFilter],
     queryFn: () => fetchIngestionRuns({ page, page_size: 50, status: statusFilter || undefined }),
-    refetchInterval: 10_000,
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      return d?.items?.some((r) => r.status === 'running') ? 4000 : 10_000;
+    },
   });
 
   const cleanupMutation = useMutation({

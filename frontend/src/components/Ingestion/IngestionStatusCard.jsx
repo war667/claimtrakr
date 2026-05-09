@@ -57,17 +57,19 @@ export default function IngestionStatusCard({ source }) {
     queryKey: ['activeRun', pollRunId],
     queryFn: () => fetchIngestionRunById(pollRunId),
     enabled: !!pollRunId,
-    refetchInterval: (data) => {
-      if (!data || data.status === 'running') return 3000;
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      if (!d || d.status === 'running') return 3000;
       return false;
     },
-    onSuccess: (data) => {
-      if (data.status !== 'running') {
-        qc.invalidateQueries({ queryKey: ['ingestionStatus'] });
-        qc.invalidateQueries({ queryKey: ['ingestionRuns'] });
-      }
-    },
   });
+
+  useEffect(() => {
+    if (activeRun && activeRun.status !== 'running') {
+      qc.invalidateQueries({ queryKey: ['ingestionStatus'] });
+      qc.invalidateQueries({ queryKey: ['ingestionRuns'] });
+    }
+  }, [activeRun?.status]);
 
   const isRunning = activeRun?.status === 'running' || source.last_run_status === 'running';
   const justFinished = activeRunId && activeRun && activeRun.status !== 'running';
