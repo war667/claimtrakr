@@ -9,6 +9,7 @@ import FileUpload from './FileUpload';
 import StatusBadge from '../Claims/StatusBadge';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import { WORKFLOW_STATUSES } from '../../constants';
+import useIsMobile from '../../hooks/useIsMobile';
 
 const STAKING_CHECKLIST = [
   'Claim name assigned',
@@ -101,6 +102,7 @@ export default function TargetDetailPage() {
   if (error) return <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>Error: {error.message}</div>;
   if (!target) return null;
 
+  const isMobile = useIsMobile();
   const isApproved = target.workflow_status === 'approved';
   const ws = WORKFLOW_STATUSES.find((s) => s.key === target.workflow_status);
 
@@ -110,7 +112,7 @@ export default function TargetDetailPage() {
 
       {/* Header */}
       <div style={{
-        padding: '16px 24px',
+        padding: isMobile ? '12px' : '16px 24px',
         borderBottom: '1px solid rgba(255,255,255,0.08)',
         background: '#0f2039',
         display: 'flex',
@@ -185,7 +187,7 @@ export default function TargetDetailPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,380px)', gap: '16px', padding: '16px 24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) minmax(0,380px)', gap: '16px', padding: isMobile ? '12px' : '16px 24px' }}>
         {/* Left column */}
         <div>
           <Section title="Claim Summary">

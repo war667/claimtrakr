@@ -6,10 +6,12 @@ import StatusBadge from '../Claims/StatusBadge';
 import { WORKFLOW_STATUSES } from '../../constants';
 import EmptyState from '../shared/EmptyState';
 import { format, parseISO } from 'date-fns';
+import useIsMobile from '../../hooks/useIsMobile';
 
 export default function TargetList({ filters }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const isMobile = useIsMobile();
   const [page, setPage] = useState(1);
   const [newTargetModal, setNewTargetModal] = useState(false);
   const [newSerial, setNewSerial] = useState('');
@@ -76,6 +78,48 @@ export default function TargetList({ filters }) {
           title="No targets yet"
           message="Add claims to your target list from the Claims Table or Map pages."
         />
+      ) : isMobile ? (
+        <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {items.map((t) => {
+            const ws = WORKFLOW_STATUSES.find((s) => s.key === t.workflow_status);
+            return (
+              <div
+                key={t.id}
+                onClick={() => navigate(`/targets/${t.id}`)}
+                style={{
+                  background: '#0f2039',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#ffffff', flex: 1 }}>
+                    {t.internal_name || t.serial_nr}
+                  </div>
+                  <span style={{
+                    background: (ws?.color || '#6b7280') + '18',
+                    color: ws?.color || '#6b7280',
+                    border: `1px solid ${(ws?.color || '#6b7280')}44`,
+                    borderRadius: '9999px', padding: '2px 8px', fontSize: '11px', fontWeight: 600,
+                    flexShrink: 0,
+                  }}>
+                    {ws?.label || t.workflow_status}
+                  </span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#2563eb', fontFamily: 'monospace', marginBottom: '6px' }}>
+                  {t.serial_nr}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <StatusBadge status={t.case_status} closedDt={t.closed_dt} />
+                  {t.claim_type && <span style={{ fontSize: '11px', color: '#4b6079' }}>{t.claim_type}</span>}
+                  {t.priority_label && <span style={{ fontSize: '11px', color: '#4b6079' }}>{t.priority_label}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
