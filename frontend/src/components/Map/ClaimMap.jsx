@@ -1,9 +1,11 @@
-import React, { useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
+import React, { useEffect, useRef, useMemo } from 'react';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { useQuery } from '@tanstack/react-query';
 import { differenceInDays, parseISO } from 'date-fns';
 import { fetchClaimsGeoJSON } from '../../api/claims';
-import EmptyState from '../shared/EmptyState';
+
+const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
 function getFeatureColor(props) {
   if (props.case_status === 'ACTIVE') return '#22c55e';
@@ -31,13 +33,51 @@ function getFeatureOpacity(props) {
   return 0.55;
 }
 
+function applyDarkTheme(map) {
+  const layers = map.getStyle().layers || [];
+  for (const layer of layers) {
+    try {
+      const { id, type } = layer;
+      const sl = (layer['source-layer'] || '').toLowerCase();
+
+      if (type === 'background') {
+        map.setPaintProperty(id, 'background-color', '#071220');
+      } else if (type === 'fill') {
+        if (sl.includes('water')) {
+          map.setPaintProperty(id, 'fill-color', '#071220');
+          map.setPaintProperty(id, 'fill-opacity', 1);
+        } else if (sl.includes('park') || sl.includes('landuse') || sl.includes('landcover')) {
+          map.setPaintProperty(id, 'fill-color', '#0f3d4a');
+          map.setPaintProperty(id, 'fill-opacity', 0.6);
+        } else if (sl.includes('building')) {
+          map.setPaintProperty(id, 'fill-color', '#112a4a');
+        } else {
+          map.setPaintProperty(id, 'fill-color', '#0d2137');
+        }
+      } else if (type === 'line') {
+        if (sl.includes('water')) {
+          map.setPaintProperty(id, 'line-color', '#071220');
+        } else if (sl.includes('road') || sl.includes('transport')) {
+          const major = id.includes('motorway') || id.includes('primary') || id.includes('trunk');
+          map.setPaintProperty(id, 'line-color', major ? '#1a6b8a' : '#0a3550');
+        } else {
+          map.setPaintProperty(id, 'line-color', '#0a3550');
+        }
+      } else if (type === 'symbol') {
+        try { map.setPaintProperty(id, 'text-color', '#c8e6f0'); } catch (_) {}
+        try { map.setPaintProperty(id, 'text-halo-color', '#071220'); } catch (_) {}
+      }
+    } catch (_) {}
+  }
+}
+
 function MapLegend() {
   return (
     <div style={{
       position: 'absolute', bottom: '30px', right: '10px', zIndex: 1000,
       background: '#0f2039', border: '1px solid rgba(255,255,255,0.1)',
       borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-      padding: '10px 14px', fontSize: '12px',
+      padding: '10px 14px', fontSize: '12px', pointerEvents: 'none',
     }}>
       <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#06b6d4' }}>
         Claim Status
@@ -59,15 +99,18 @@ function MapLegend() {
 }
 
 export default function ClaimMap({ filters, onFeatureClick }) {
-  const geoJsonRef = useRef();
+  const mapContainer = useRef(null);
+  const map = useRef(null);
+  const onClickRef = useRef(onFeatureClick);
+  onClickRef.current = onFeatureClick;
 
-  const queryParams = {
-    ...(filters.state ? { state: filters.state } : {}),
-    ...(filters.status ? { status: filters.status } : {}),
+  const queryParams = useMemo(() => ({
+    ...(filters.state              ? { state: filters.state } : {}),
+    ...(filters.status             ? { status: filters.status } : {}),
     ...(filters.claim_types?.length ? { claim_type: filters.claim_types.join(',') } : {}),
-    ...(filters.county ? { county: filters.county } : {}),
+    ...(filters.county             ? { county: filters.county } : {}),
     ...(filters.closed_within_days ? { closed_within_days: filters.closed_within_days } : {}),
-  };
+  }), [filters]);
 
   const { data: geojson, isLoading } = useQuery({
     queryKey: ['claimsGeoJSON', queryParams],
@@ -77,51 +120,99 @@ export default function ClaimMap({ filters, onFeatureClick }) {
 
   const featureCount = geojson?.features?.length ?? 0;
 
-  const onEachFeature = (feature, layer) => {
-    layer.on('click', () => onFeatureClick(feature.properties));
-  };
+  useEffect(() => {
+    if (map.current || !mapContainer.current) return;
 
-  const style = (feature) => {
-    const color = getFeatureColor(feature.properties);
-    const opacity = getFeatureOpacity(feature.properties);
-    return {
-      fillColor: color,
-      fillOpacity: opacity,
-      color: '#ffffff',
-      weight: 2,
-      opacity: 0.9,
+    map.current = new maplibregl.Map({
+      container: mapContainer.current,
+      style: STYLE_URL,
+      center: [-114, 39.5],
+      zoom: 6,
+    });
+
+    map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    map.current.on('load', () => {
+      applyDarkTheme(map.current);
+
+      map.current.addSource('claims', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.current.addLayer({
+        id: 'claims-fill',
+        type: 'fill',
+        source: 'claims',
+        paint: {
+          'fill-color': ['get', '_color'],
+          'fill-opacity': ['get', '_opacity'],
+        },
+      });
+
+      map.current.addLayer({
+        id: 'claims-border',
+        type: 'line',
+        source: 'claims',
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 2,
+          'line-opacity': 0.85,
+        },
+      });
+
+      map.current.on('click', 'claims-fill', (e) => {
+        if (!e.features?.length) return;
+        const props = { ...e.features[0].properties };
+        delete props._color;
+        delete props._opacity;
+        onClickRef.current(props);
+      });
+
+      map.current.on('mouseenter', 'claims-fill', () => {
+        map.current.getCanvas().style.cursor = 'pointer';
+      });
+      map.current.on('mouseleave', 'claims-fill', () => {
+        map.current.getCanvas().style.cursor = '';
+      });
+    });
+
+    return () => {
+      map.current?.remove();
+      map.current = null;
     };
-  };
+  }, []);
 
-  const geoJsonKey = useMemo(() => JSON.stringify(queryParams), [queryParams]);
+  useEffect(() => {
+    if (!map.current || !geojson) return;
+
+    const apply = () => {
+      const source = map.current.getSource('claims');
+      if (!source) return;
+      source.setData({
+        ...geojson,
+        features: geojson.features.map((f) => ({
+          ...f,
+          properties: {
+            ...f.properties,
+            _color:   getFeatureColor(f.properties),
+            _opacity: getFeatureOpacity(f.properties),
+          },
+        })),
+      });
+    };
+
+    if (map.current.isStyleLoaded()) {
+      apply();
+    } else {
+      map.current.once('load', apply);
+    }
+  }, [geojson]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <style>{`.map-tiles-dimmed { filter: brightness(3.2); }`}</style>
-      <MapContainer
-        center={[39.5, -114]}
-        zoom={6}
-        style={{ width: '100%', height: '100%' }}
-        zoomControl={true}
-      >
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          subdomains="abcd"
-          maxZoom={20}
-          className="map-tiles-dimmed"
-        />
-        {geojson && featureCount > 0 && (
-          <GeoJSON
-            key={geoJsonKey}
-            data={geojson}
-            style={style}
-            onEachFeature={onEachFeature}
-            ref={geoJsonRef}
-          />
-        )}
-        <MapLegend />
-      </MapContainer>
+      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
+      <MapLegend />
 
       {isLoading && (
         <div style={{
@@ -129,7 +220,7 @@ export default function ClaimMap({ filters, onFeatureClick }) {
           background: 'rgba(0,0,0,0.5)', zIndex: 500,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <div style={{ background: '#0f2039', border: '1px solid rgba(255,255,255,0.1)', padding: '16px 24px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)', fontSize: '14px', color: '#94a3b8' }}>
+          <div style={{ background: '#0f2039', border: '1px solid rgba(255,255,255,0.1)', padding: '16px 24px', borderRadius: '8px', fontSize: '14px', color: '#94a3b8' }}>
             Loading claim data...
           </div>
         </div>
@@ -138,8 +229,8 @@ export default function ClaimMap({ filters, onFeatureClick }) {
       {!isLoading && featureCount === 0 && (
         <div style={{
           position: 'absolute', top: '80px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 500, background: '#0f2039', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-          padding: '12px 20px', fontSize: '13px', color: '#94a3b8', textAlign: 'center',
+          zIndex: 500, background: '#0f2039', border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '8px', padding: '12px 20px', fontSize: '13px', color: '#94a3b8', textAlign: 'center',
         }}>
           No claims loaded. Trigger ingestion on the Ingestion page.
         </div>
