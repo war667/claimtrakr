@@ -160,9 +160,24 @@ export default function DashboardPage() {
         borderRadius: '12px',
         padding: '16px',
       }}>
-        <h2 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Recent Claim Events
-        </h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
+          <h2 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Recent Claim Events
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {stats?.total_events != null && (
+              <span style={{ fontSize: '11px', color: '#4b6079' }}>
+                {stats.total_events.toLocaleString()} total events in DB
+              </span>
+            )}
+            <span
+              onClick={() => navigate('/table?changed_within_days=7')}
+              style={{ fontSize: '12px', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              View changed last 7 days →
+            </span>
+          </div>
+        </div>
         {statsLoading ? (
           <div style={{ color: '#4b6079', fontSize: '13px' }}>Loading...</div>
         ) : !stats?.recent_events?.length ? (

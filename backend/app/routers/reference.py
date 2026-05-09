@@ -125,6 +125,9 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     """))
     event_rows = events_result.fetchall()
 
+    total_events_result = await db.execute(text("SELECT COUNT(*) FROM claim_events"))
+    total_events = total_events_result.scalar() or 0
+
     recent_events = []
     for r in event_rows:
         desc_parts = [r[1]]
@@ -155,4 +158,5 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         "last_ingestion_at": str(last_ingestion_at) if last_ingestion_at else None,
         "ingestion_health": ingestion_health,
         "recent_events": recent_events,
+        "total_events": total_events,
     }
