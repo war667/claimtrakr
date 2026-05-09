@@ -1,11 +1,8 @@
-import React, { useEffect, useRef, useMemo } from 'react';
-import maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import React, { useMemo, useRef } from 'react';
+import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
 import { useQuery } from '@tanstack/react-query';
 import { differenceInDays, parseISO } from 'date-fns';
 import { fetchClaimsGeoJSON } from '../../api/claims';
-
-const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
 function getFeatureColor(props) {
   if (props.case_status === 'ACTIVE') return '#22c55e';
@@ -33,14 +30,13 @@ function getFeatureOpacity(props) {
   return 0.55;
 }
 
-
 function MapLegend() {
   return (
     <div style={{
       position: 'absolute', bottom: '30px', right: '10px', zIndex: 1000,
       background: '#0f2039', border: '1px solid rgba(255,255,255,0.1)',
       borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-      padding: '10px 14px', fontSize: '12px', pointerEvents: 'none',
+      padding: '10px 14px', fontSize: '12px',
     }}>
       <div style={{ fontWeight: 700, marginBottom: '6px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#06b6d4' }}>
         Claim Status
@@ -62,18 +58,15 @@ function MapLegend() {
 }
 
 export default function ClaimMap({ filters, onFeatureClick }) {
-  const mapContainer = useRef(null);
-  const map = useRef(null);
-  const onClickRef = useRef(onFeatureClick);
-  onClickRef.current = onFeatureClick;
+  const geoJsonRef = useRef();
 
-  const queryParams = useMemo(() => ({
-    ...(filters.state              ? { state: filters.state } : {}),
-    ...(filters.status             ? { status: filters.status } : {}),
+  const queryParams = {
+    ...(filters.state ? { state: filters.state } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
     ...(filters.claim_types?.length ? { claim_type: filters.claim_types.join(',') } : {}),
-    ...(filters.county             ? { county: filters.county } : {}),
+    ...(filters.county ? { county: filters.county } : {}),
     ...(filters.closed_within_days ? { closed_within_days: filters.closed_within_days } : {}),
-  }), [filters]);
+  };
 
   const { data: geojson, isLoading } = useQuery({
     queryKey: ['claimsGeoJSON', queryParams],
@@ -83,97 +76,51 @@ export default function ClaimMap({ filters, onFeatureClick }) {
 
   const featureCount = geojson?.features?.length ?? 0;
 
-  useEffect(() => {
-    if (map.current || !mapContainer.current) return;
+  const onEachFeature = (feature, layer) => {
+    layer.on('click', () => onFeatureClick(feature.properties));
+  };
 
-    map.current = new maplibregl.Map({
-      container: mapContainer.current,
-      style: STYLE_URL,
-      center: [-114, 39.5],
-      zoom: 6,
-    });
-
-    map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-    map.current.on('load', () => {
-      map.current.addSource('claims', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-      });
-
-      map.current.addLayer({
-        id: 'claims-fill',
-        type: 'fill',
-        source: 'claims',
-        paint: {
-          'fill-color': ['get', '_color'],
-          'fill-opacity': ['get', '_opacity'],
-        },
-      });
-
-      map.current.addLayer({
-        id: 'claims-border',
-        type: 'line',
-        source: 'claims',
-        paint: {
-          'line-color': '#ffffff',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.4, 10, 1.2, 13, 2, 16, 3],
-          'line-opacity': 0.85,
-        },
-      });
-
-      map.current.on('click', 'claims-fill', (e) => {
-        if (!e.features?.length) return;
-        const props = { ...e.features[0].properties };
-        delete props._color;
-        delete props._opacity;
-        onClickRef.current(props);
-      });
-
-      map.current.on('mouseenter', 'claims-fill', () => {
-        map.current.getCanvas().style.cursor = 'pointer';
-      });
-      map.current.on('mouseleave', 'claims-fill', () => {
-        map.current.getCanvas().style.cursor = '';
-      });
-    });
-
-    return () => {
-      map.current?.remove();
-      map.current = null;
+  const style = (feature) => {
+    const color = getFeatureColor(feature.properties);
+    const opacity = getFeatureOpacity(feature.properties);
+    return {
+      fillColor: color,
+      fillOpacity: opacity,
+      color: color,
+      weight: 2,
+      opacity: 1,
     };
-  }, []);
+  };
 
-  useEffect(() => {
-    if (!map.current || !geojson) return;
-
-    const apply = () => {
-      const source = map.current.getSource('claims');
-      if (!source) return;
-      source.setData({
-        ...geojson,
-        features: geojson.features.map((f) => ({
-          ...f,
-          properties: {
-            ...f.properties,
-            _color:   getFeatureColor(f.properties),
-            _opacity: getFeatureOpacity(f.properties),
-          },
-        })),
-      });
-    };
-
-    if (map.current.isStyleLoaded()) {
-      apply();
-    } else {
-      map.current.once('load', apply);
-    }
-  }, [geojson]);
+  const geoJsonKey = useMemo(() => JSON.stringify(queryParams), [queryParams]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
-      <MapLegend />
+      <style>{`.map-tiles { filter: brightness(3.2); }`}</style>
+      <MapContainer
+        center={[39.5, -114]}
+        zoom={6}
+        style={{ width: '100%', height: '100%' }}
+        zoomControl={true}
+      >
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          subdomains="abcd"
+          maxZoom={20}
+          className="map-tiles"
+        />
+        {geojson && featureCount > 0 && (
+          <GeoJSON
+            key={geoJsonKey}
+            data={geojson}
+            style={style}
+            onEachFeature={onEachFeature}
+            ref={geoJsonRef}
+          />
+        )}
+        <MapLegend />
+      </MapContainer>
 
       {isLoading && (
         <div style={{
