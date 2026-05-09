@@ -7,6 +7,76 @@ import { fetchClaimsGeoJSON } from '../../api/claims';
 
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/fiord';
 
+function escapeXml(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function ringToKmlCoords(ring) {
+  return ring.map(([lon, lat]) => `${lon},${lat},0`).join(' ');
+}
+
+function geojsonToKml(geojson) {
+  const placemarks = (geojson.features || []).map((f) => {
+    const p = f.properties;
+    const geom = f.geometry;
+    if (!geom) return '';
+
+    const rings = geom.type === 'Polygon'
+      ? [geom.coordinates[0]]
+      : geom.type === 'MultiPolygon'
+        ? geom.coordinates.map((poly) => poly[0])
+        : [];
+
+    if (!rings.length) return '';
+
+    const polygonsKml = rings.map((ring) => `
+      <Polygon>
+        <outerBoundaryIs><LinearRing>
+          <coordinates>${ringToKmlCoords(ring)}</coordinates>
+        </LinearRing></outerBoundaryIs>
+      </Polygon>`).join('');
+
+    const desc = [
+      p.claim_name     && `Name: ${p.claim_name}`,
+      p.claimant_name  && `Claimant: ${p.claimant_name}`,
+      p.case_status    && `Status: ${p.case_status}`,
+      p.county         && `County: ${p.county}, ${p.state}`,
+      p.acres          && `Acres: ${p.acres}`,
+      p.closed_dt      && `Closed: ${p.closed_dt}`,
+    ].filter(Boolean).join('&#10;');
+
+    const geometry = rings.length > 1
+      ? `<MultiGeometry>${polygonsKml}</MultiGeometry>`
+      : polygonsKml;
+
+    return `
+  <Placemark>
+    <name>${escapeXml(p.serial_nr)}</name>
+    <description>${escapeXml(desc)}</description>
+    ${geometry}
+  </Placemark>`;
+  }).join('');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>ClaimTrakr Export ${new Date().toISOString().slice(0, 10)}</name>
+    ${placemarks}
+  </Document>
+</kml>`;
+}
+
+function downloadKml(geojson) {
+  const kml = geojsonToKml(geojson);
+  const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `claimtrakr_${new Date().toISOString().slice(0, 10)}.kml`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function getFeatureColor(props) {
   if (props.case_status === 'ACTIVE') return '#22c55e';
   if (props.closed_dt) {
@@ -173,6 +243,24 @@ export default function ClaimMap({ filters, onFeatureClick }) {
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
       <MapLegend />
+
+      <div style={{ position: 'absolute', bottom: '170px', right: '10px', zIndex: 1000 }}>
+        <button
+          onClick={() => geojson && downloadKml(geojson)}
+          disabled={!geojson || featureCount === 0}
+          title="Export current claims as KML for onX Maps"
+          style={{
+            background: featureCount > 0 ? '#2563eb' : '#334155',
+            color: '#fff', border: 'none', borderRadius: '8px',
+            padding: '8px 14px', fontSize: '12px', fontWeight: 600,
+            cursor: featureCount > 0 ? 'pointer' : 'default',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          ⬇ Export KML {featureCount > 0 ? `(${featureCount.toLocaleString()})` : ''}
+        </button>
+      </div>
 
       {isLoading && (
         <div style={{
