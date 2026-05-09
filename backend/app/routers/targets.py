@@ -135,7 +135,8 @@ async def list_targets(
                    t.priority_score, t.priority_label, t.notes, t.internal_name,
                    t.proposed_claim_type, t.proposed_name, t.created_at, t.updated_at,
                    t.status_changed_at, c.claim_name, c.claim_type, c.claimant_name,
-                   c.state, c.county, c.case_status, c.closed_dt::text, c.acres::text
+                   c.state, c.county, c.case_status, c.closed_dt::text, c.acres::text,
+                   t.blm_scraped_data, t.blm_scraped_at
             FROM targets t
             JOIN claims c ON c.serial_nr = t.serial_nr
             WHERE {where}
