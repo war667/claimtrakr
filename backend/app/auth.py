@@ -19,13 +19,13 @@ SESSION_TTL_SECONDS = 24 * 3600
 
 
 async def _has_any_users(db: AsyncSession) -> bool:
-    from app.models.users import User
+    from app.models.targets import User
     result = await db.execute(select(User.id).limit(1))
     return result.fetchone() is not None
 
 
 async def _find_active_user(username: str, db: AsyncSession):
-    from app.models.users import User
+    from app.models.targets import User
     result = await db.execute(
         select(User).where(User.username == username, User.is_active == True)
     )
@@ -41,7 +41,7 @@ async def _record_login(request: Request, response: Response, username: str, db:
     ip = forwarded.split(",")[0].strip() if forwarded else (
         request.client.host if request.client else None
     )
-    from app.models.users import LoginEvent
+    from app.models.targets import LoginEvent
     db.add(LoginEvent(username=username, ip_address=ip, session_id=session_id))
     try:
         await db.commit()

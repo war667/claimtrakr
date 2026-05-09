@@ -86,8 +86,20 @@ class User(Base):
     email = Column(Text)
     role = Column(Text, default="researcher")
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False, nullable=False)
+    password_hash = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     last_login_at = Column(TIMESTAMP(timezone=True))
+
+
+class LoginEvent(Base):
+    __tablename__ = "login_events"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(Text, nullable=False, index=True)
+    ip_address = Column(Text, nullable=True)
+    session_id = Column(Text, nullable=True)
+    logged_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 
 class SavedSearch(Base):

@@ -48,7 +48,7 @@ async def me(
 
 @router.get("/users")
 async def list_users(db: AsyncSession = Depends(get_db)):
-    from app.models.users import User
+    from app.models.targets import User
     result = await db.execute(select(User).order_by(User.created_at))
     users = result.scalars().all()
     return [
@@ -65,7 +65,7 @@ async def list_users(db: AsyncSession = Depends(get_db)):
 
 @router.post("/users", status_code=201)
 async def create_user(body: UserCreateSchema, db: AsyncSession = Depends(get_db)):
-    from app.models.users import User
+    from app.models.targets import User
     existing = await db.execute(select(User).where(User.username == body.username))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -81,7 +81,7 @@ async def create_user(body: UserCreateSchema, db: AsyncSession = Depends(get_db)
 
 @router.put("/users/{user_id}")
 async def update_user(user_id: int, body: UserUpdateSchema, db: AsyncSession = Depends(get_db)):
-    from app.models.users import User
+    from app.models.targets import User
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -98,7 +98,7 @@ async def update_user(user_id: int, body: UserUpdateSchema, db: AsyncSession = D
 
 @router.get("/login-events")
 async def login_events(limit: int = 200, db: AsyncSession = Depends(get_db)):
-    from app.models.users import LoginEvent
+    from app.models.targets import LoginEvent
     result = await db.execute(
         select(LoginEvent).order_by(desc(LoginEvent.logged_at)).limit(limit)
     )

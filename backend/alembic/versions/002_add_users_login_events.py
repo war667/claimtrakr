@@ -1,4 +1,4 @@
-"""add users and login_events tables
+"""add password_hash, is_admin to users; add login_events table
 
 Revision ID: 002
 Revises: 001
@@ -13,16 +13,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            is_admin BOOLEAN NOT NULL DEFAULT FALSE,
-            is_active BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-    """)
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT")
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE")
     op.execute("""
         CREATE TABLE IF NOT EXISTS login_events (
             id SERIAL PRIMARY KEY,
@@ -38,4 +30,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS login_events")
-    op.execute("DROP TABLE IF EXISTS users")
+    op.execute("ALTER TABLE users DROP COLUMN IF EXISTS password_hash")
+    op.execute("ALTER TABLE users DROP COLUMN IF EXISTS is_admin")
