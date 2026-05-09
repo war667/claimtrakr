@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import text, select, update
 
 from app.database import AsyncSessionLocal
-from app.models.ingestion import DataSource, IngestionRun, IngestionError, SourceRawRecord
+from app.models.ingestion import DataSource, IngestionRun, IngestionError
 from app.models.claims import Claim, ClaimEvent
 from app.ingestion import blm_arcgis
 from app.ingestion.normalizer import normalize_feature
@@ -213,15 +213,6 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                         continue
 
                     serial_nr = normalized["serial_nr"]
-
-                    # Insert raw record
-                    raw_rec = SourceRawRecord(
-                        run_id=run_id,
-                        source_id=source.id,
-                        serial_nr=serial_nr,
-                        raw_json=feature.get("attributes") or {},
-                    )
-                    session.add(raw_rec)
 
                     # Detect changes
                     existing = existing_map.get(serial_nr)
