@@ -342,7 +342,7 @@ function BLMCaseSection({ targetId, target, onRefresh }) {
       await scrapeBlm(targetId);
       onRefresh();
     } catch (e) {
-      setError(e.response?.data?.detail || 'Scrape failed');
+      setError(e.response?.data?.detail || e.message || 'Scrape failed');
     } finally {
       setScraping(false);
     }

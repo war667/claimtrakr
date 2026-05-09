@@ -15,7 +15,10 @@ async def scrape_mlrs_case(url: str) -> dict:
         raise RuntimeError("playwright not installed")
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
+        browser = await pw.chromium.launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        )
         page = await browser.new_page()
         try:
             await page.goto(url, timeout=30_000, wait_until="networkidle")

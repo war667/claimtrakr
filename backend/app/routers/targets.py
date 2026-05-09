@@ -459,7 +459,10 @@ async def scrape_blm(
         raise HTTPException(status_code=400, detail="No MLRS case URL available for this target")
 
     from app.ingestion.mlrs_scraper import scrape_mlrs_case
-    data = await scrape_mlrs_case(blm_url)
+    try:
+        data = await scrape_mlrs_case(blm_url)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Scrape error: {exc}")
 
     target.blm_scraped_data = data
     target.blm_scraped_at = datetime.now(timezone.utc)
