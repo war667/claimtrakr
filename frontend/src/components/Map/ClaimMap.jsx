@@ -33,6 +33,16 @@ function getFeatureOpacity(props) {
   return 0.55;
 }
 
+function roadColor(id) {
+  if (id.includes('motorway') || id.includes('trunk'))  return '#2a8aaa';
+  if (id.includes('primary'))                            return '#1a6b8a';
+  if (id.includes('secondary'))                         return '#155870';
+  if (id.includes('tertiary'))                          return '#0f4460';
+  if (id.includes('street') || id.includes('local') || id.includes('minor')) return '#0d3a52';
+  if (id.includes('path') || id.includes('track') || id.includes('service')) return '#0a2f45';
+  return '#0d3a52';
+}
+
 function applyDarkTheme(map) {
   const layers = map.getStyle().layers || [];
   for (const layer of layers) {
@@ -44,11 +54,11 @@ function applyDarkTheme(map) {
         map.setPaintProperty(id, 'background-color', '#071220');
       } else if (type === 'fill') {
         if (sl.includes('water')) {
-          map.setPaintProperty(id, 'fill-color', '#071220');
+          map.setPaintProperty(id, 'fill-color', '#0a1e35');
           map.setPaintProperty(id, 'fill-opacity', 1);
         } else if (sl.includes('park') || sl.includes('landuse') || sl.includes('landcover')) {
-          map.setPaintProperty(id, 'fill-color', '#0f3d4a');
-          map.setPaintProperty(id, 'fill-opacity', 0.6);
+          map.setPaintProperty(id, 'fill-color', '#0c3040');
+          map.setPaintProperty(id, 'fill-opacity', 0.7);
         } else if (sl.includes('building')) {
           map.setPaintProperty(id, 'fill-color', '#112a4a');
         } else {
@@ -56,16 +66,19 @@ function applyDarkTheme(map) {
         }
       } else if (type === 'line') {
         if (sl.includes('water')) {
-          map.setPaintProperty(id, 'line-color', '#071220');
+          map.setPaintProperty(id, 'line-color', '#0a1e35');
+        } else if (sl.includes('boundary') || sl.includes('admin')) {
+          map.setPaintProperty(id, 'line-color', '#1e4d6b');
+          map.setPaintProperty(id, 'line-opacity', 0.8);
         } else if (sl.includes('road') || sl.includes('transport')) {
-          const major = id.includes('motorway') || id.includes('primary') || id.includes('trunk');
-          map.setPaintProperty(id, 'line-color', major ? '#1a6b8a' : '#0a3550');
+          map.setPaintProperty(id, 'line-color', roadColor(id));
         } else {
           map.setPaintProperty(id, 'line-color', '#0a3550');
         }
       } else if (type === 'symbol') {
         try { map.setPaintProperty(id, 'text-color', '#c8e6f0'); } catch (_) {}
         try { map.setPaintProperty(id, 'text-halo-color', '#071220'); } catch (_) {}
+        try { map.setPaintProperty(id, 'text-halo-width', 1.5); } catch (_) {}
       }
     } catch (_) {}
   }
