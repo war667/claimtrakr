@@ -26,7 +26,8 @@ export default function IngestionPage() {
   const { data: status, isLoading } = useQuery({
     queryKey: ['ingestionStatus'],
     queryFn: fetchIngestionStatus,
-    refetchInterval: 15_000,
+    refetchInterval: (data) =>
+      data?.sources?.some((s) => s.last_run_status === 'running') ? 4000 : 15_000,
   });
 
   const triggerAllMutation = useMutation({
