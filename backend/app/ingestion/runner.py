@@ -162,6 +162,9 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                         page_offset=page_offset, raw_data=raw_data
                     )
 
+                async def on_fetch_progress(fetched_so_far: int):
+                    await _flush_progress(run_id, fetched_so_far, 0, 0)
+
                 try:
                     features = await blm_arcgis.fetch_all_features(
                         base_url=source.base_url,
@@ -169,6 +172,7 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                         state_filter=state_filter,
                         run_id=run_id,
                         on_error=on_fetch_error,
+                        on_progress=on_fetch_progress,
                     )
                 except Exception as exc:
                     logger.error(f"Catastrophic fetch failure for {source_key}: {exc}")

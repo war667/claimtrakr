@@ -41,6 +41,7 @@ async def fetch_all_features(
     state_filter: Optional[List[str]] = None,
     run_id: Optional[int] = None,
     on_error=None,
+    on_progress=None,
 ) -> List[Dict[str, Any]]:
     """
     Fetches all features from a BLM ArcGIS REST layer with pagination.
@@ -119,6 +120,8 @@ async def fetch_all_features(
             logger.info(
                 f"BLM ArcGIS page {page_num}: offset={offset} fetched={len(features)} total={len(all_features)}"
             )
+            if on_progress and page_num % 10 == 0:
+                await on_progress(len(all_features))
 
             exceeded = data.get("exceededTransferLimit", False)
             if len(features) < 1000 and not exceeded:
