@@ -7,6 +7,25 @@ import StatusBadge from './StatusBadge';
 import ClaimEventLog from './ClaimEventLog';
 import useIsMobile from '../../hooks/useIsMobile';
 
+const RAW_FIELD_LABELS = {
+  CSE_NR: 'Serial #', CSE_NAME: 'Claim Name', BLM_PROD: 'Claim Type',
+  CSE_DISP: 'Status', ADMIN_STATE: 'State', RCRD_ACRS: 'Acres',
+  SF_ID: 'Salesforce ID', OBJECTID: 'Object ID', SRC: 'Source',
+  QLTY: 'Quality / Notes', CSE_META: 'Legal Description',
+  GEO_STATE: 'Geo State', LEG_CSE_NR: 'Legacy Case #',
+  CSE_TYPE_NR: 'Case Type #', MC_CONVEYED: 'Conveyed',
+  MC_EXCLUDED: 'Excluded', MC_PATENTED: 'Patented',
+  REC_TYPE_CSE_GRP: 'Record Type',
+  CASE_SERIAL_NR: 'Serial #', CASE_NM: 'Claim Name', CASE_TYPE: 'Type',
+  CASE_STATUS: 'Status', CLAIMANT_NM: 'Claimant', CLAIMANT_ADDR: 'Address',
+  ADMIN_ST: 'State', COUNTY_NM: 'County', MERIDIAN: 'Meridian',
+  TOWNSHIP: 'Township', RANGE: 'Range', SECTION: 'Section',
+  ALIQUOT: 'Aliquot', GIS_ACRES: 'Acres', DISP_CD: 'Disposition Code',
+  DISP_DESC: 'Disposition', LOCATION_DT: 'Location Date',
+  FILING_DT: 'Filing Date', CLOSE_DT: 'Close Date',
+  LAST_ACTION_DT: 'Last Action', TOWNSHIP_DIR: 'Twp Dir', RANGE_DIR: 'Rng Dir',
+};
+
 function Field({ label, value }) {
   if (!value && value !== 0) return null;
   return (
@@ -172,15 +191,35 @@ export default function ClaimDetailPanel({ claim, onClose }) {
           {rawOpen ? '▲ Hide' : '▼ View'} Raw Source Data
         </button>
         {rawOpen && (
-          <pre style={{
+          <div style={{
             background: '#080f1e',
             border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: '6px',
-            padding: '10px', fontSize: '11px', overflow: 'auto', maxHeight: '200px',
-            color: '#94a3b8', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            padding: '10px', fontSize: '11px', overflow: 'auto', maxHeight: '260px',
           }}>
-            {rawLoading ? 'Loading...' : rawData ? JSON.stringify(rawData, null, 2) : 'No raw data available.'}
-          </pre>
+            {rawLoading ? (
+              <span style={{ color: '#4b6079' }}>Loading...</span>
+            ) : !rawData ? (
+              <span style={{ color: '#4b6079' }}>No raw data available.</span>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <tbody>
+                  {Object.entries(rawData)
+                    .filter(([, v]) => v !== null && v !== '' && v !== undefined)
+                    .map(([k, v]) => (
+                      <tr key={k} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '3px 8px 3px 0', color: '#06b6d4', fontWeight: 600, whiteSpace: 'nowrap', verticalAlign: 'top', width: '140px' }}>
+                          {RAW_FIELD_LABELS[k] || k}
+                        </td>
+                        <td style={{ padding: '3px 0', color: '#94a3b8', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                          {String(v)}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         )}
       </div>
 
