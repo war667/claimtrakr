@@ -100,11 +100,52 @@ def render(visitors, interval):
     print(f"  {len(visitors)} unique visitor(s), {total} total requests")
 
 
+def lookup_ip(path, ip):
+    """Print a full timeline of hits for a specific IP from the entire log."""
+    hits = []
+    try:
+        with open(path) as f:
+            for line in f:
+                parts = line.strip().split(" | ")
+                if len(parts) < 5:
+                    continue
+                timestamp, lip, status, request, ua = parts[0], parts[1], parts[2], parts[3], parts[4]
+                if lip != ip:
+                    continue
+                try:
+                    ts_dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                except Exception:
+                    ts_dt = None
+                page = request.split(" ")[1].split("?")[0] if len(request.split(" ")) >= 2 else request
+                hits.append((ts_dt, timestamp, status, page, ua[:60]))
+    except FileNotFoundError:
+        print(f"Log file not found: {path}")
+        return
+
+    if not hits:
+        print(f"  No entries found for {ip}")
+        return
+
+    hits.sort(key=lambda x: x[0] or datetime.min.replace(tzinfo=timezone.utc))
+    print(f"\n  Activity log for {ip}  ({len(hits)} requests)\n")
+    print(f"  {'Time':<20} {'Status':<8} {'Page':<45} {'User Agent'}")
+    print("  " + "-" * 110)
+    for ts_dt, timestamp, status, page, ua in hits:
+        mt = to_mountain(timestamp)
+        print(f"  {mt:<20} {status:<8} {page:<45} {ua}")
+    print()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--exclude", default="", help="Comma-separated IPs to exclude")
     parser.add_argument("--interval", type=int, default=15, help="Refresh interval in seconds")
+    parser.add_argument("--ip", default="", help="Look up full history for a specific IP and exit")
     args = parser.parse_args()
+
+    if args.ip:
+        lookup_ip(LOG_FILE, args.ip.strip())
+        return
 
     exclude = DEFAULT_EXCLUDE.copy()
     if args.exclude:
