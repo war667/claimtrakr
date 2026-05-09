@@ -2,6 +2,46 @@ import React, { useState, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { uploadFile } from '../../api/ingest';
 
+const SAMPLE_CSV = `serial_nr,claim_name,claim_type,claimant_name,claimant_addr,state,county,meridian,township,township_dir,range,range_dir,section,aliquot,acres,case_status,disposition_cd,disposition_desc,location_dt,filing_dt,closed_dt,last_action_dt
+NV900000001,EXAMPLE LODE 1,lode,SMITH JOHN,123 MAIN ST RENO NV 89501,NV,ELKO,MOUNT DIABLO,32,N,52,E,14,NESW,20.66,ACTIVE,,,2020-03-15,2020-03-20,,2020-03-20
+NV900000002,EXAMPLE PLACER 1,placer,JONES MARY,,NV,LANDER,MOUNT DIABLO,18,N,44,E,6,,160.0,CLOSED,,,2018-06-01,2018-06-10,2023-01-01,2023-01-01
+`;
+
+const SAMPLE_GEOJSON = JSON.stringify({
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      geometry: {
+        type: "Polygon",
+        coordinates: [[[-117.5, 40.2], [-117.4, 40.2], [-117.4, 40.3], [-117.5, 40.3], [-117.5, 40.2]]]
+      },
+      properties: {
+        serial_nr: "NV900000003",
+        claim_name: "EXAMPLE LODE 2",
+        claim_type: "lode",
+        claimant_name: "DOE JANE",
+        state: "NV",
+        county: "HUMBOLDT",
+        acres: 20.66,
+        case_status: "ACTIVE",
+        location_dt: "2021-05-10",
+        filing_dt: "2021-05-15"
+      }
+    }
+  ]
+}, null, 2);
+
+function downloadSample(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function ManualUpload() {
   const [file, setFile] = useState(null);
   const [sourceType, setSourceType] = useState('csv');
@@ -66,6 +106,22 @@ export default function ManualUpload() {
           style={{ display: 'none' }}
           onChange={(e) => e.target.files[0] && handleFile(e.target.files[0])}
         />
+      </div>
+
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+        <span style={{ fontSize: '11px', color: '#4b6079' }}>Download sample:</span>
+        <span
+          onClick={() => downloadSample(SAMPLE_CSV, 'sample_claims.csv', 'text/csv')}
+          style={{ fontSize: '11px', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
+        >
+          CSV
+        </span>
+        <span
+          onClick={() => downloadSample(SAMPLE_GEOJSON, 'sample_claims.geojson', 'application/json')}
+          style={{ fontSize: '11px', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
+        >
+          GeoJSON
+        </span>
       </div>
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
