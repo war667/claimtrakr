@@ -206,9 +206,12 @@ export default function DashboardPage() {
                     {ev.detected_at ? format(parseISO(ev.detected_at), 'MMM d HH:mm') : '—'}
                   </td>
                   <td style={{ padding: '7px 12px', fontFamily: 'monospace' }}>
-                    {ev.blm_url ? (
-                      <a href={ev.blm_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>{ev.serial_nr}</a>
-                    ) : ev.serial_nr}
+                    <span
+                      onClick={() => navigate(`/table?search=${ev.serial_nr}`)}
+                      style={{ color: '#2563eb', cursor: 'pointer', textDecoration: 'none' }}
+                    >
+                      {ev.serial_nr}
+                    </span>
                   </td>
                   <td style={{ padding: '7px 12px', color: '#ffffff' }}>{EVENT_TYPE_LABELS[ev.event_type] || ev.event_type}</td>
                   <td style={{ padding: '7px 12px', color: '#94a3b8' }}>
