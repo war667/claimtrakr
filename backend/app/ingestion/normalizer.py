@@ -154,7 +154,8 @@ def normalize_feature(
             "claimant_name": (attrs.get("CLAIMANT_NM") or attrs.get("claimant_name") or "").strip() or None,
             "claimant_addr": attrs.get("CLAIMANT_ADDR") or attrs.get("claimant_addr"),
             "state": attrs.get("ADMIN_ST") or attrs.get("ADMIN_STATE") or attrs.get("state"),
-            "county": attrs.get("COUNTY_NM") or attrs.get("county"),
+            "county": (attrs.get("COUNTY_NM") or attrs.get("CNTY_NM") or
+                       attrs.get("COUNTY_NAME") or attrs.get("COUNTY") or attrs.get("county")),
             "meridian": attrs.get("MERIDIAN") or attrs.get("meridian"),
             "township": attrs.get("TOWNSHIP") or attrs.get("township"),
             "township_dir": attrs.get("TOWNSHIP_DIR") or attrs.get("township_dir"),

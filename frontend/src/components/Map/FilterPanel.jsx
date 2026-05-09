@@ -7,9 +7,10 @@ export default function FilterPanel({ filters, onChange, onReset }) {
   const [collapsed, setCollapsed] = useState(false);
   const [countySearch, setCountySearch] = useState('');
 
-  const { data: counties = [] } = useQuery({
+  const { data: counties = [], isLoading: countiesLoading, isError: countiesError } = useQuery({
     queryKey: ['counties'],
     queryFn: fetchCounties,
+    staleTime: 300_000,
   });
 
   const filteredCounties = counties
@@ -102,7 +103,7 @@ export default function FilterPanel({ filters, onChange, onReset }) {
         ))}
       </FilterSection>
 
-      <FilterSection label="County">
+      <FilterSection label={`County${countiesLoading ? ' (loading…)' : countiesError ? ' (error)' : ` (${counties.length})`}`}>
         <input
           type="text"
           placeholder="Search county..."
@@ -130,6 +131,11 @@ export default function FilterPanel({ filters, onChange, onReset }) {
             </option>
           ))}
         </select>
+        {!countiesLoading && !countiesError && counties.length === 0 && (
+          <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>
+            No county data — county field may be null in DB
+          </div>
+        )}
       </FilterSection>
 
       <div style={{ marginTop: '12px' }}>
