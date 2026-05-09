@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchTarget, updateTarget, fetchTargetHistory } from '../../api/targets';
+import { fetchTarget, updateTarget, fetchTargetHistory, scrapeBlm } from '../../api/targets';
 import { format, parseISO } from 'date-fns';
 import WorkflowStepper from './WorkflowStepper';
 import DueDiligenceChecklist from './DueDiligenceChecklist';
@@ -320,8 +320,126 @@ export default function TargetDetailPage() {
           <Section title="Files">
             <FileUpload targetId={Number(id)} />
           </Section>
+
+          <BLMCaseSection targetId={id} target={target} onRefresh={() => qc.invalidateQueries({ queryKey: ['target', id] })} />
         </div>
       </div>
     </div>
+  );
+}
+
+function BLMCaseSection({ targetId, target, onRefresh }) {
+  const [scraping, setScraping] = useState(false);
+  const [error, setError] = useState(null);
+
+  const data = target?.blm_scraped_data;
+  const scrapedAt = target?.blm_scraped_at;
+
+  const handleScrape = async () => {
+    setScraping(true);
+    setError(null);
+    try {
+      await scrapeBlm(targetId);
+      onRefresh();
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Scrape failed');
+    } finally {
+      setScraping(false);
+    }
+  };
+
+  return (
+    <Section title="BLM Case File">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+        <button
+          onClick={handleScrape}
+          disabled={scraping}
+          style={{
+            background: scraping ? '#334155' : '#2563eb',
+            color: '#fff', border: 'none', borderRadius: '8px',
+            padding: '7px 16px', fontSize: '13px', fontWeight: 600,
+            cursor: scraping ? 'default' : 'pointer',
+          }}
+        >
+          {scraping ? 'Fetching from MLRS…' : data ? '↻ Refresh BLM Data' : 'Fetch BLM Data'}
+        </button>
+        {scrapedAt && (
+          <span style={{ fontSize: '11px', color: '#4b6079' }}>
+            Last fetched {new Date(scrapedAt).toLocaleString()}
+          </span>
+        )}
+      </div>
+
+      {error && (
+        <div style={{ fontSize: '13px', color: '#ef4444', marginBottom: '8px' }}>{error}</div>
+      )}
+
+      {data?.error && (
+        <div style={{ fontSize: '13px', color: '#ef4444' }}>Scrape error: {data.error}</div>
+      )}
+
+      {data && !data.error && (
+        <div>
+          {data.sections?.fields && Object.keys(data.sections.fields).length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Case Details</div>
+              <dl style={{ margin: 0 }}>
+                {Object.entries(data.sections.fields).map(([k, v]) => (
+                  <div key={k} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '8px', marginBottom: '6px' }}>
+                    <dt style={{ fontSize: '11px', color: '#4b6079', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{k}</dt>
+                    <dd style={{ fontSize: '13px', color: '#ffffff', margin: 0 }}>{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {data.sections?.tables?.map((tbl, ti) => (
+            tbl.rows.length > 0 && (
+              <div key={ti} style={{ marginBottom: '16px', overflowX: 'auto' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                  Table {ti + 1}
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  {tbl.headers.length > 0 && (
+                    <thead>
+                      <tr>
+                        {tbl.headers.map((h, i) => (
+                          <th key={i} style={{ padding: '4px 8px', textAlign: 'left', color: '#06b6d4', fontWeight: 600, fontSize: '11px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                  )}
+                  <tbody>
+                    {tbl.rows.slice(0, 20).map((row, ri) => (
+                      <tr key={ri} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        {row.map((cell, ci) => (
+                          <td key={ci} style={{ padding: '4px 8px', color: '#94a3b8' }}>{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          ))}
+
+          {!data.sections?.fields && !data.sections?.tables?.length && data.raw_text && (
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Raw Page Text</div>
+              <pre style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '300px', overflowY: 'auto' }}>
+                {data.raw_text}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!data && !scraping && (
+        <div style={{ fontSize: '13px', color: '#4b6079', fontStyle: 'italic' }}>
+          Click "Fetch BLM Data" to pull live case info from the MLRS portal.
+        </div>
+      )}
+    </Section>
   );
 }

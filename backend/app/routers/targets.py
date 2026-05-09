@@ -438,3 +438,31 @@ async def delete_target_file(
 
     await db.delete(tf)
     await db.commit()
+
+
+@router.post("/{target_id}/scrape-blm")
+async def scrape_blm(
+    target_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Target).where(Target.id == target_id))
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    from app.models.claims import Claim
+    claim_result = await db.execute(select(Claim).where(Claim.serial_nr == target.serial_nr))
+    claim = claim_result.scalar_one_or_none()
+
+    blm_url = claim.blm_url if claim else None
+    if not blm_url or 'blm-case' not in blm_url:
+        raise HTTPException(status_code=400, detail="No MLRS case URL available for this target")
+
+    from app.ingestion.mlrs_scraper import scrape_mlrs_case
+    data = await scrape_mlrs_case(blm_url)
+
+    target.blm_scraped_data = data
+    target.blm_scraped_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return data

@@ -37,3 +37,6 @@ export const uploadTargetFile = (id, formData) =>
 
 export const deleteTargetFile = (targetId, fileId) =>
   client.delete(`/api/v1/targets/${targetId}/files/${fileId}`);
+
+export const scrapeBlm = (id) =>
+  client.post(`/api/v1/targets/${id}/scrape-blm`).then((r) => r.data);

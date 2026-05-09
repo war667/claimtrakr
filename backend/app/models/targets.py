@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, Boolean, TIMESTAMP, ForeignKey
+from sqlalchemy import Column, Integer, Text, Boolean, TIMESTAMP, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -22,6 +22,8 @@ class Target(Base):
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
     status_changed_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    blm_scraped_data = Column(JSONB, nullable=True)
+    blm_scraped_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     history = relationship("TargetStatusHistory", back_populates="target", cascade="all, delete-orphan")
     checklist = relationship("DueDiligenceItem", back_populates="target", cascade="all, delete-orphan")
