@@ -2,23 +2,40 @@ import axios from 'axios';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
-const client = axios.create({
-  baseURL: BASE_URL,
-  auth: {
-    username: import.meta.env.VITE_AUTH_USER || 'admin',
-    password: import.meta.env.VITE_AUTH_PASS || 'changeme_strong_password',
-  },
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+function getStoredAuth() {
+  try {
+    return JSON.parse(localStorage.getItem('ct_auth'));
+  } catch {
+    return null;
+  }
+}
 
-export const uploadClient = axios.create({
-  baseURL: BASE_URL,
-  auth: {
-    username: import.meta.env.VITE_AUTH_USER || 'admin',
-    password: import.meta.env.VITE_AUTH_PASS || 'changeme_strong_password',
-  },
-});
+function makeClient(extraConfig = {}) {
+  const instance = axios.create({ baseURL: BASE_URL, ...extraConfig });
+
+  instance.interceptors.request.use((config) => {
+    const auth = getStoredAuth();
+    if (auth) {
+      config.auth = { username: auth.username, password: auth.password };
+    }
+    return config;
+  });
+
+  instance.interceptors.response.use(
+    (r) => r,
+    (err) => {
+      if (err.response?.status === 401) {
+        localStorage.removeItem('ct_auth');
+        window.location.href = '/login';
+      }
+      return Promise.reject(err);
+    }
+  );
+
+  return instance;
+}
+
+const client = makeClient({ headers: { 'Content-Type': 'application/json' } });
+export const uploadClient = makeClient();
 
 export default client;

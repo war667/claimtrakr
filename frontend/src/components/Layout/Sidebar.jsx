@@ -1,5 +1,6 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 const NAV_ITEMS = [
   { to: '/',          icon: '🏠', label: 'Dashboard' },
@@ -12,6 +13,15 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar({ onNavClick }) {
+  const { auth, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+    if (onNavClick) onNavClick();
+  };
+
   return (
     <aside style={{
       width: '200px',
@@ -63,10 +73,22 @@ export default function Sidebar({ onNavClick }) {
       <div style={{
         padding: '12px 16px',
         borderTop: '1px solid rgba(255,255,255,0.08)',
-        fontSize: '11px',
-        color: '#334155',
       }}>
-        Internal Use Only
+        {auth && (
+          <div style={{ fontSize: '11px', color: '#4b6079', marginBottom: '8px' }}>
+            {auth.username}
+          </div>
+        )}
+        <button
+          onClick={handleLogout}
+          style={{
+            width: '100%', background: 'none', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '6px', padding: '6px 10px', fontSize: '12px', color: '#4b6079',
+            cursor: 'pointer', textAlign: 'left',
+          }}
+        >
+          Sign Out
+        </button>
       </div>
     </aside>
   );
