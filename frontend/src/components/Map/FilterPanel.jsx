@@ -1,22 +1,8 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchCounties } from '../../api/reference';
 import { CLAIM_TYPES } from '../../constants';
 
 export default function FilterPanel({ filters, onChange, onReset }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [countySearch, setCountySearch] = useState('');
-
-  const { data: counties = [], isLoading: countiesLoading, isError: countiesError } = useQuery({
-    queryKey: ['counties'],
-    queryFn: fetchCounties,
-    staleTime: 300_000,
-  });
-
-  const filteredCounties = counties
-    .filter((c) => !filters.state || filters.state === 'Both' || c.state === filters.state)
-    .filter((c) => !countySearch || c.county.toLowerCase().includes(countySearch.toLowerCase()))
-    .slice(0, 50);
 
   if (collapsed) {
     return (
@@ -101,41 +87,6 @@ export default function FilterPanel({ filters, onChange, onReset }) {
             {ct.replace(/_/g, ' ')}
           </label>
         ))}
-      </FilterSection>
-
-      <FilterSection label={`County${countiesLoading ? ' (loading…)' : countiesError ? ' (error)' : ` (${counties.length})`}`}>
-        <input
-          type="text"
-          placeholder="Search county..."
-          value={countySearch}
-          onChange={(e) => setCountySearch(e.target.value)}
-          style={{
-            width: '100%', padding: '4px 8px', marginBottom: '4px',
-            background: '#0a1628', border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: '6px', fontSize: '12px', color: '#ffffff',
-          }}
-        />
-        <select
-          value={filters.county || ''}
-          onChange={(e) => onChange({ ...filters, county: e.target.value || undefined })}
-          style={{
-            width: '100%', padding: '4px',
-            background: '#0a1628', border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: '6px', fontSize: '12px', color: '#ffffff',
-          }}
-        >
-          <option value="">All counties</option>
-          {filteredCounties.map((c) => (
-            <option key={`${c.state}-${c.county}`} value={c.county}>
-              {c.state}: {c.county} ({c.total_count})
-            </option>
-          ))}
-        </select>
-        {!countiesLoading && !countiesError && counties.length === 0 && (
-          <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>
-            No county data — county field may be null in DB
-          </div>
-        )}
       </FilterSection>
 
       <div style={{ marginTop: '12px' }}>
