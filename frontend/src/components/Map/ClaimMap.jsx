@@ -19,16 +19,16 @@ function getFeatureColor(props) {
 }
 
 function getFeatureOpacity(props) {
-  if (props.case_status === 'ACTIVE') return 0.5;
+  if (props.case_status === 'ACTIVE') return 0.65;
   if (props.closed_dt) {
     try {
       const days = differenceInDays(new Date(), parseISO(String(props.closed_dt)));
-      if (days <= 7)  return 0.6;
-      if (days <= 30) return 0.55;
-      if (days <= 90) return 0.5;
+      if (days <= 7)  return 0.75;
+      if (days <= 30) return 0.7;
+      if (days <= 90) return 0.65;
     } catch (_) {}
   }
-  return 0.4;
+  return 0.55;
 }
 
 function MapLegend() {
@@ -87,9 +87,9 @@ export default function ClaimMap({ filters, onFeatureClick }) {
     return {
       fillColor: color,
       fillOpacity: opacity,
-      color: color,
-      weight: 1,
-      opacity: 0.8,
+      color: '#ffffff',
+      weight: 2,
+      opacity: 0.9,
     };
   };
 
@@ -104,8 +104,10 @@ export default function ClaimMap({ filters, onFeatureClick }) {
         zoomControl={true}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          subdomains="abcd"
+          maxZoom={20}
         />
         {geojson && featureCount > 0 && (
           <GeoJSON
@@ -122,10 +124,10 @@ export default function ClaimMap({ filters, onFeatureClick }) {
       {isLoading && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(255,255,255,0.6)', zIndex: 500,
+          background: 'rgba(0,0,0,0.5)', zIndex: 500,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <div style={{ background: '#fff', padding: '16px 24px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', fontSize: '14px', color: '#374151' }}>
+          <div style={{ background: '#0f2039', border: '1px solid rgba(255,255,255,0.1)', padding: '16px 24px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)', fontSize: '14px', color: '#94a3b8' }}>
             Loading claim data...
           </div>
         </div>
@@ -134,8 +136,8 @@ export default function ClaimMap({ filters, onFeatureClick }) {
       {!isLoading && featureCount === 0 && (
         <div style={{
           position: 'absolute', top: '80px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 500, background: '#fff', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          padding: '12px 20px', fontSize: '13px', color: '#6b7280', textAlign: 'center',
+          zIndex: 500, background: '#0f2039', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+          padding: '12px 20px', fontSize: '13px', color: '#94a3b8', textAlign: 'center',
         }}>
           No claims loaded. Trigger ingestion on the Ingestion page.
         </div>
