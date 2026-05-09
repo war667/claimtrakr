@@ -77,6 +77,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: pad, maxWidth: '1200px' }}>
+      <style>{`.info-tooltip-wrap:hover .info-tooltip { display: block !important; }`}</style>
       {isEmpty && !statsLoading && (
         <div style={{
           background: 'rgba(37,99,235,0.12)',
@@ -161,9 +162,27 @@ export default function DashboardPage() {
         padding: '16px',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
-          <h2 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Recent Claim Events
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <h2 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Recent Claim Events
+            </h2>
+            <div style={{ position: 'relative', display: 'inline-block' }} className="info-tooltip-wrap">
+              <span style={{ fontSize: '12px', color: '#4b6079', cursor: 'default', userSelect: 'none' }}>ⓘ</span>
+              <div className="info-tooltip" style={{
+                display: 'none', position: 'absolute', top: '20px', left: 0, zIndex: 100,
+                background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '8px', padding: '12px 14px', width: '300px',
+                fontSize: '12px', color: '#94a3b8', lineHeight: '1.6',
+              }}>
+                <div style={{ fontWeight: 600, color: '#ffffff', marginBottom: '8px' }}>When does a claim appear here?</div>
+                <div style={{ marginBottom: '4px' }}><span style={{ color: '#22c55e' }}>●</span> <strong style={{ color: '#e2e8f0' }}>New Claim</strong> — serial number not seen before</div>
+                <div style={{ marginBottom: '4px' }}><span style={{ color: '#f59e0b' }}>●</span> <strong style={{ color: '#e2e8f0' }}>Status Changed</strong> — ACTIVE ↔ CLOSED</div>
+                <div style={{ marginBottom: '4px' }}><span style={{ color: '#3b82f6' }}>●</span> <strong style={{ color: '#e2e8f0' }}>Claimant Changed</strong> — owner name changed</div>
+                <div><span style={{ color: '#ef4444' }}>●</span> <strong style={{ color: '#e2e8f0' }}>Claim Removed</strong> — no longer returned by BLM</div>
+                <div style={{ marginTop: '8px', color: '#4b6079', fontSize: '11px' }}>Events are detected on each ingestion run.</div>
+              </div>
+            </div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {stats?.total_events != null && (
               <span style={{ fontSize: '11px', color: '#4b6079' }}>
