@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Any, Dict, Optional, List
 from pydantic import BaseModel, ConfigDict
 
 
@@ -47,6 +47,8 @@ class TargetSchema(BaseModel):
     case_status: Optional[str] = None
     closed_dt: Optional[str] = None
     acres: Optional[str] = None
+    blm_scraped_data: Optional[Dict[str, Any]] = None
+    blm_scraped_at: Optional[datetime] = None
 
 
 class TargetStatusHistorySchema(BaseModel):

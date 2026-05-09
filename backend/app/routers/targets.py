@@ -36,7 +36,8 @@ TARGET_SELECT = text("""
         t.proposed_claim_type, t.proposed_name, t.created_at, t.updated_at,
         t.status_changed_at,
         c.claim_name, c.claim_type, c.claimant_name, c.state, c.county,
-        c.case_status, c.closed_dt::text, c.acres::text
+        c.case_status, c.closed_dt::text, c.acres::text,
+        t.blm_scraped_data, t.blm_scraped_at
     FROM targets t
     JOIN claims c ON c.serial_nr = t.serial_nr
 """)
@@ -51,6 +52,7 @@ def _row_to_target(row) -> TargetSchema:
         status_changed_at=row[13], claim_name=row[14], claim_type=row[15],
         claimant_name=row[16], state=row[17], county=row[18],
         case_status=row[19], closed_dt=row[20], acres=row[21],
+        blm_scraped_data=row[22], blm_scraped_at=row[23],
     )
 
 
@@ -198,7 +200,8 @@ async def create_target(
                    t.priority_score, t.priority_label, t.notes, t.internal_name,
                    t.proposed_claim_type, t.proposed_name, t.created_at, t.updated_at,
                    t.status_changed_at, c.claim_name, c.claim_type, c.claimant_name,
-                   c.state, c.county, c.case_status, c.closed_dt::text, c.acres::text
+                   c.state, c.county, c.case_status, c.closed_dt::text, c.acres::text,
+                   t.blm_scraped_data, t.blm_scraped_at
             FROM targets t JOIN claims c ON c.serial_nr = t.serial_nr
             WHERE t.id = :tid
         """),
@@ -215,7 +218,8 @@ async def get_target(target_id: int, db: AsyncSession = Depends(get_db)):
                    t.priority_score, t.priority_label, t.notes, t.internal_name,
                    t.proposed_claim_type, t.proposed_name, t.created_at, t.updated_at,
                    t.status_changed_at, c.claim_name, c.claim_type, c.claimant_name,
-                   c.state, c.county, c.case_status, c.closed_dt::text, c.acres::text
+                   c.state, c.county, c.case_status, c.closed_dt::text, c.acres::text,
+                   t.blm_scraped_data, t.blm_scraped_at
             FROM targets t JOIN claims c ON c.serial_nr = t.serial_nr
             WHERE t.id = :tid
         """),
@@ -278,7 +282,8 @@ async def update_target(
                    t.priority_score, t.priority_label, t.notes, t.internal_name,
                    t.proposed_claim_type, t.proposed_name, t.created_at, t.updated_at,
                    t.status_changed_at, c.claim_name, c.claim_type, c.claimant_name,
-                   c.state, c.county, c.case_status, c.closed_dt::text, c.acres::text
+                   c.state, c.county, c.case_status, c.closed_dt::text, c.acres::text,
+                   t.blm_scraped_data, t.blm_scraped_at
             FROM targets t JOIN claims c ON c.serial_nr = t.serial_nr
             WHERE t.id = :tid
         """),
