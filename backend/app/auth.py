@@ -32,7 +32,11 @@ async def _has_any_users(db: AsyncSession) -> bool:
 async def _find_active_user(username: str, db: AsyncSession):
     from app.models.targets import User
     result = await db.execute(
-        select(User).where(User.username == username, User.is_active == True)
+        select(User).where(
+            User.username == username,
+            User.is_active == True,
+            User.password_hash.isnot(None),
+        )
     )
     return result.scalar_one_or_none()
 
