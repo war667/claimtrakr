@@ -97,7 +97,7 @@ export default function ClaimMap({ filters, onFeatureClick }) {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <style>{`.map-tiles-dimmed { filter: brightness(1.6); }`}</style>
+      <style>{`.map-tiles-dimmed { filter: brightness(2.2); }`}</style>
       <MapContainer
         center={[39.5, -114]}
         zoom={6}
