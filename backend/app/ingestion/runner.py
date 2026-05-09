@@ -200,6 +200,7 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                 _diag_status_changes = 0
                 _diag_claimant_changes = 0
                 _diag_disp_changes = 0
+                fetched_serials: set = set()
 
                 for feature in features:
                     normalized, err = normalize_feature(
@@ -217,6 +218,7 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                         continue
 
                     serial_nr = normalized["serial_nr"]
+                    fetched_serials.add(serial_nr)
 
                     # Detect changes
                     existing = existing_map.get(serial_nr)
@@ -312,13 +314,12 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                     f"status={_diag_status_changes} claimant={_diag_claimant_changes} disp={_diag_disp_changes}"
                 )
 
-                # Only detect removed records if the fetch completed without errors
+                # Only detect removed records if the fetch completed without errors.
+                # Compare in Python to avoid relying on last_seen_at within the same transaction.
                 if fetch_errors == 0:
-                    removed_result = await session.execute(
-                        text("SELECT serial_nr FROM claims WHERE serial_nr = ANY(:serials) AND last_seen_at < :run_start"),
-                        {"serials": list(existing_map.keys()), "run_start": run_start_time},
-                    )
-                    for (removed_serial,) in removed_result.fetchall():
+                    removed_serials = set(existing_map.keys()) - fetched_serials
+                    logger.info(f"Run {run_id}: {len(removed_serials)} claims not seen this run")
+                    for removed_serial in removed_serials:
                         session.add(ClaimEvent(
                             serial_nr=removed_serial,
                             run_id=run_id,
