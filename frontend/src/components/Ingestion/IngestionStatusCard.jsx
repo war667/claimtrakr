@@ -49,10 +49,14 @@ export default function IngestionStatusCard({ source }) {
     },
   });
 
+  // Use the run ID from the trigger response, or fall back to the last known
+  // run ID when the source is already running (e.g. started by scheduler).
+  const pollRunId = activeRunId || (source.last_run_status === 'running' ? source.last_run_id : null);
+
   const { data: activeRun } = useQuery({
-    queryKey: ['activeRun', activeRunId],
-    queryFn: () => fetchIngestionRunById(activeRunId),
-    enabled: !!activeRunId,
+    queryKey: ['activeRun', pollRunId],
+    queryFn: () => fetchIngestionRunById(pollRunId),
+    enabled: !!pollRunId,
     refetchInterval: (data) => {
       if (!data || data.status === 'running') return 3000;
       return false;
@@ -65,7 +69,7 @@ export default function IngestionStatusCard({ source }) {
     },
   });
 
-  const isRunning = activeRun?.status === 'running';
+  const isRunning = activeRun?.status === 'running' || source.last_run_status === 'running';
   const justFinished = activeRunId && activeRun && activeRun.status !== 'running';
 
   const status = source.last_run_status || 'never';
