@@ -108,20 +108,20 @@ export default function ManualUpload() {
         />
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-        <span style={{ fontSize: '11px', color: '#4b6079' }}>Download sample:</span>
-        <span
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
+        <span style={{ fontSize: '12px', color: '#94a3b8' }}>Download template:</span>
+        <button
           onClick={() => downloadSample(SAMPLE_CSV, 'sample_claims.csv', 'text/csv')}
-          style={{ fontSize: '11px', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
+          style={{ background: '#0d1f35', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '5px', padding: '3px 10px', fontSize: '12px', color: '#06b6d4', cursor: 'pointer' }}
         >
-          CSV
-        </span>
-        <span
+          ⬇ CSV
+        </button>
+        <button
           onClick={() => downloadSample(SAMPLE_GEOJSON, 'sample_claims.geojson', 'application/json')}
-          style={{ fontSize: '11px', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
+          style={{ background: '#0d1f35', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '5px', padding: '3px 10px', fontSize: '12px', color: '#06b6d4', cursor: 'pointer' }}
         >
-          GeoJSON
-        </span>
+          ⬇ GeoJSON
+        </button>
       </div>
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
