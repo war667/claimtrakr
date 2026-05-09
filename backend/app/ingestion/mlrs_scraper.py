@@ -67,6 +67,8 @@ async def scrape_mlrs_case(url: str) -> dict:
                         )
                         if value_el:
                             value = (await value_el.inner_text()).strip()
+                            # Lightning often appends the label text after a newline; take first line only
+                            value = value.split('\n')[0].strip()
                             if value and value != label:
                                 fields[label] = value
                 except Exception:
@@ -82,7 +84,7 @@ async def scrape_mlrs_case(url: str) -> dict:
                             continue
                         dd = await dt.evaluate_handle("el => el.nextElementSibling")
                         if dd:
-                            value = (await dd.inner_text()).strip()
+                            value = (await dd.inner_text()).strip().split('\n')[0].strip()
                             if value and value != label:
                                 fields[label] = value
                     except Exception:
