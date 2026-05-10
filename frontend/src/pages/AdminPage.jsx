@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchMe, fetchUsers, createUser, updateUser, fetchLoginEvents } from '../api/admin';
+import { fetchMe, fetchUsers, createUser, updateUser, fetchLoginEvents, clearLoginEvents } from '../api/admin';
 import { format, parseISO } from 'date-fns';
 
 function Section({ title, children }) {
@@ -37,6 +37,11 @@ export default function AdminPage() {
   const [newPwd, setNewPwd] = useState('');
   const [pwdError, setPwdError] = useState('');
   const [showAllEvents, setShowAllEvents] = useState(false);
+
+  const clearEventsMutation = useMutation({
+    mutationFn: () => clearLoginEvents(5),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['login-events'] }),
+  });
 
   const createMutation = useMutation({
     mutationFn: () => createUser(newUser),
@@ -206,7 +211,20 @@ export default function AdminPage() {
       </Section>
 
       {/* Login events */}
-      <Section title={`Login Events (last ${events.length})`}>
+      <Section title={
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Login Events (last {events.length})</span>
+          {events.length > 5 && (
+            <button
+              onClick={() => { if (window.confirm('Delete all but the last 5 login events?')) clearEventsMutation.mutate(); }}
+              disabled={clearEventsMutation.isPending}
+              style={{ background: 'none', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '5px', padding: '2px 10px', fontSize: '11px', color: '#ef4444', cursor: 'pointer' }}
+            >
+              {clearEventsMutation.isPending ? 'Clearing...' : 'Clear old'}
+            </button>
+          )}
+        </div>
+      }>
         {events.length === 0 ? (
           <div style={{ color: '#4b6079', fontSize: '13px', fontStyle: 'italic' }}>No login events yet.</div>
         ) : (

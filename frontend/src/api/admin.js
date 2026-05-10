@@ -14,3 +14,6 @@ export const updateUser = (id, body) =>
 
 export const fetchLoginEvents = () =>
   client.get('/api/v1/admin/login-events').then((r) => r.data);
+
+export const clearLoginEvents = (keep = 5) =>
+  client.delete('/api/v1/admin/login-events', { params: { keep } }).then((r) => r.data);

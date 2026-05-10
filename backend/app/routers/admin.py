@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 import bcrypt
 from pydantic import BaseModel
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_admin, verify_credentials, _has_any_users, _find_active_user, record_login_event
@@ -97,6 +97,16 @@ async def update_user(user_id: int, body: UserUpdateSchema, db: AsyncSession = D
         user.is_active = body.is_active
     await db.commit()
     return {"id": user.id, "username": user.username, "is_admin": user.is_admin, "is_active": user.is_active}
+
+
+@router.delete("/login-events", status_code=200)
+async def clear_login_events(keep: int = 5, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        text("DELETE FROM login_events WHERE id NOT IN (SELECT id FROM login_events ORDER BY logged_at DESC LIMIT :keep)"),
+        {"keep": keep},
+    )
+    await db.commit()
+    return {"deleted": result.rowcount}
 
 
 @router.get("/login-events")
