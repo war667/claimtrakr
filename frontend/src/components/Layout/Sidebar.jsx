@@ -15,6 +15,9 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ onNavClick }) {
   const { auth, logout } = useAuth();
+  const navItems = auth?.username === 'warr'
+    ? [...NAV_ITEMS, { to: '/analytics', icon: '📈', label: 'Analytics' }]
+    : NAV_ITEMS;
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -46,7 +49,7 @@ export default function Sidebar({ onNavClick }) {
         </div>
       </div>
       <nav style={{ flex: 1, padding: '8px 0' }}>
-        {NAV_ITEMS.map(({ to, icon, label }) => (
+        {navItems.map(({ to, icon, label }) => (
           <NavLink
             key={to}
             to={to}

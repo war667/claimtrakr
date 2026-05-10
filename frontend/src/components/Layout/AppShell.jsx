@@ -4,10 +4,12 @@ import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import useIsMobile from '../../hooks/useIsMobile';
+import usePageTracking from '../../hooks/usePageTracking';
 
 export default function AppShell() {
   const isMobile = useIsMobile();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  usePageTracking();
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
