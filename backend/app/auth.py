@@ -1,5 +1,6 @@
 import secrets
 import logging
+from datetime import datetime
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import bcrypt
@@ -73,13 +74,27 @@ def _parse_ua(ua: str) -> str:
 
 
 async def record_login_event(request: Request, username: str, db: AsyncSession):
+    from datetime import timezone, timedelta
+    from sqlalchemy import desc
+    from app.models.targets import LoginEvent
+
+    # Only record once per hour per user — /me is called on every page load
+    result = await db.execute(
+        select(LoginEvent)
+        .where(LoginEvent.username == username)
+        .order_by(desc(LoginEvent.logged_at))
+        .limit(1)
+    )
+    last = result.scalar_one_or_none()
+    if last and last.logged_at and (datetime.now(timezone.utc) - last.logged_at) < timedelta(hours=1):
+        return
+
     forwarded = request.headers.get("X-Forwarded-For")
     ip = forwarded.split(",")[0].strip() if forwarded else (
         request.client.host if request.client else None
     )
     user_agent = request.headers.get("User-Agent")
     logger.info("LOGIN user=%s ip=%s device=%s", username, ip, _parse_ua(user_agent))
-    from app.models.targets import LoginEvent
     db.add(LoginEvent(username=username, ip_address=ip, user_agent=user_agent))
     try:
         await db.commit()
