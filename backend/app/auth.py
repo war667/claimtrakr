@@ -37,13 +37,48 @@ async def _find_active_user(username: str, db: AsyncSession):
     return result.scalar_one_or_none()
 
 
+def _parse_ua(ua: str) -> str:
+    if not ua:
+        return "Unknown"
+    if "Edg/" in ua:
+        browser = "Edge"
+    elif "OPR/" in ua or "Opera" in ua:
+        browser = "Opera"
+    elif "Chrome/" in ua:
+        import re
+        v = re.search(r"Chrome/([\d]+)", ua)
+        browser = f"Chrome {v.group(1)}" if v else "Chrome"
+    elif "Safari/" in ua and "Chrome" not in ua:
+        browser = "Safari"
+    elif "Firefox/" in ua:
+        import re
+        v = re.search(r"Firefox/([\d]+)", ua)
+        browser = f"Firefox {v.group(1)}" if v else "Firefox"
+    else:
+        browser = "Unknown browser"
+    if "Windows NT" in ua:
+        os = "Windows"
+    elif "Mac OS X" in ua:
+        os = "macOS"
+    elif "Android" in ua:
+        os = "Android"
+    elif "iPhone" in ua or "iPad" in ua:
+        os = "iOS"
+    elif "Linux" in ua:
+        os = "Linux"
+    else:
+        os = "Unknown OS"
+    mobile = " Mobile" if any(x in ua for x in ("Mobile", "Android", "iPhone", "iPad")) else ""
+    return f"{browser} · {os}{mobile}"
+
+
 async def record_login_event(request: Request, username: str, db: AsyncSession):
     forwarded = request.headers.get("X-Forwarded-For")
     ip = forwarded.split(",")[0].strip() if forwarded else (
         request.client.host if request.client else None
     )
     user_agent = request.headers.get("User-Agent")
-    logger.info("LOGIN user=%s ip=%s ua=%s", username, ip, user_agent)
+    logger.info("LOGIN user=%s ip=%s device=%s", username, ip, _parse_ua(user_agent))
     from app.models.targets import LoginEvent
     db.add(LoginEvent(username=username, ip_address=ip, user_agent=user_agent))
     try:
