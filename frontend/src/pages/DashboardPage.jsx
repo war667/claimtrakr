@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchStats } from '../api/reference';
 import { fetchIngestionStatus } from '../api/ingest';
+import { fetchExpiringLeases } from '../api/leases';
 import { INGESTION_STATUS_COLORS } from '../constants';
 import useIsMobile from '../hooks/useIsMobile';
 import { format, parseISO } from 'date-fns';
@@ -69,6 +70,12 @@ export default function DashboardPage() {
     queryKey: ['ingestionStatus'],
     queryFn: fetchIngestionStatus,
     refetchInterval: 30_000,
+  });
+
+  const { data: expiringLeases = [] } = useQuery({
+    queryKey: ['expiring-leases'],
+    queryFn: () => fetchExpiringLeases(90),
+    refetchInterval: 300_000,
   });
 
   const isEmpty = !stats || stats.total_claims === 0;
@@ -153,6 +160,75 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Expiring Leases */}
+      {expiringLeases.length > 0 && (
+        <div style={{
+          background: '#0f2039',
+          border: '1px solid rgba(245,158,11,0.3)',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '20px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
+            <h2 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Leases Expiring Within 90 Days
+            </h2>
+            <span
+              onClick={() => navigate('/leases')}
+              style={{ fontSize: '12px', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              View all leases →
+            </span>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ background: '#0d1f35' }}>
+                {['Lease', 'Serial #', 'Lessor', 'Expires', 'Days Left'].map((h) => (
+                  <th key={h} style={{
+                    padding: '6px 10px', textAlign: 'left', fontSize: '11px',
+                    fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase',
+                    letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {expiringLeases.map((l) => {
+                const d = l.days_remaining;
+                const color = d <= 30 ? '#ef4444' : d <= 60 ? '#f59e0b' : '#eab308';
+                return (
+                  <tr key={l.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '7px 10px', color: '#ffffff', fontWeight: 500 }}>
+                      <span onClick={() => navigate('/leases')} style={{ cursor: 'pointer', color: '#2563eb' }}>
+                        {l.lease_name}
+                      </span>
+                    </td>
+                    <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>
+                      {l.serial_nr || '—'}
+                    </td>
+                    <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{l.lessor || '—'}</td>
+                    <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{l.expiration_dt}</td>
+                    <td style={{ padding: '7px 10px' }}>
+                      <span style={{
+                        background: color + '22',
+                        border: `1px solid ${color}44`,
+                        borderRadius: '9999px',
+                        padding: '2px 10px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color,
+                      }}>
+                        {d}d
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Recent Events */}
       <div style={{
