@@ -137,6 +137,7 @@ async def create_lease(
     )
     db.add(lease)
     await db.commit()
+    await db.refresh(lease)
     return _lease_to_dict(lease)
 
 
@@ -178,6 +179,7 @@ async def update_lease(
 
     lease.updated_at = datetime.now(timezone.utc)
     await db.commit()
+    await db.refresh(lease)
     return _lease_to_dict(lease)
 
 
