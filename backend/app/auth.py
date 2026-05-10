@@ -42,6 +42,7 @@ async def record_login_event(request: Request, username: str, db: AsyncSession):
     ip = forwarded.split(",")[0].strip() if forwarded else (
         request.client.host if request.client else None
     )
+    logger.info("LOGIN user=%s ip=%s", username, ip)
     from app.models.targets import LoginEvent
     db.add(LoginEvent(username=username, ip_address=ip))
     try:
