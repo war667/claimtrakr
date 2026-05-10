@@ -36,6 +36,7 @@ export default function AdminPage() {
   const [pwdModal, setPwdModal] = useState(null); // { id, username }
   const [newPwd, setNewPwd] = useState('');
   const [pwdError, setPwdError] = useState('');
+  const [showAllEvents, setShowAllEvents] = useState(false);
 
   const createMutation = useMutation({
     mutationFn: () => createUser(newUser),
@@ -209,7 +210,7 @@ export default function AdminPage() {
         {events.length === 0 ? (
           <div style={{ color: '#4b6079', fontSize: '13px', fontStyle: 'italic' }}>No login events yet.</div>
         ) : (
-          <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
+          <>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
                 <tr>
@@ -218,13 +219,13 @@ export default function AdminPage() {
                       padding: '5px 10px', textAlign: 'left', fontSize: '11px',
                       color: '#06b6d4', fontWeight: 600, textTransform: 'uppercase',
                       letterSpacing: '0.04em', borderBottom: '1px solid rgba(255,255,255,0.08)',
-                      whiteSpace: 'nowrap', position: 'sticky', top: 0, background: '#0f2039',
+                      whiteSpace: 'nowrap',
                     }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {events.map((e) => (
+                {(showAllEvents ? events : events.slice(0, 10)).map((e) => (
                   <tr key={e.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <td style={{ padding: '6px 10px', color: '#4b6079', whiteSpace: 'nowrap' }}>
                       {e.logged_at ? format(parseISO(e.logged_at), 'MMM d, yyyy HH:mm') : '—'}
@@ -235,7 +236,18 @@ export default function AdminPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            {events.length > 10 && (
+              <button
+                onClick={() => setShowAllEvents((v) => !v)}
+                style={{
+                  marginTop: '10px', background: 'none', border: 'none',
+                  color: '#2563eb', fontSize: '12px', cursor: 'pointer', padding: 0,
+                }}
+              >
+                {showAllEvents ? 'Show less' : `Show all ${events.length} events`}
+              </button>
+            )}
+          </>
         )}
       </Section>
 
