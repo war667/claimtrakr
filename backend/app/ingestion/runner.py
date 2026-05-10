@@ -327,7 +327,7 @@ async def run_ingestion(source_key: str, triggered_by: str = "scheduler", run_id
                         ))
                         changes_detected += 1
 
-            run.status = "success" if records_errored == 0 else "partial"
+            run.status = "success" if (records_errored == 0 and fetch_errors == 0) else "partial"
             run.records_fetched = records_fetched
             run.records_upserted = records_upserted
             run.records_errored = records_errored
