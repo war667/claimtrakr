@@ -158,7 +158,8 @@ function LeaseModal({ lease, onClose, onSave }) {
       await onSave(body);
       onClose();
     } catch (e) {
-      setError(e.response?.data?.detail || 'Save failed');
+      const detail = e.response?.data?.detail;
+      setError(Array.isArray(detail) ? detail.map((d) => d.msg).join(', ') : detail || `Save failed (${e.response?.status ?? 'no response'})`);
     }
   }
 
