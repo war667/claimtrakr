@@ -12,6 +12,7 @@ import TargetDetailPage from './components/Targets/TargetDetailPage';
 import ReportPage from './pages/ReportPage';
 import AdminPage from './pages/AdminPage';
 import LeasesPage from './pages/LeasesPage';
+import LeaseDetailPage from './pages/LeaseDetailPage';
 
 function RequireAuth({ children }) {
   const { auth } = useAuth();
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="ingestion" element={<IngestionPage />} />
           <Route path="report" element={<ReportPage />} />
           <Route path="leases" element={<LeasesPage />} />
+          <Route path="leases/:id" element={<LeaseDetailPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

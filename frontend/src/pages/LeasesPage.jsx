@@ -467,7 +467,7 @@ export default function LeasesPage() {
                       onMouseLeave={(e) => e.currentTarget.style.background = rowBg}
                     >
                       <td style={{ ...tdStyle, fontWeight: 600, color: '#ffffff' }}>
-                        <span onClick={() => setModal(lease)} style={{ cursor: 'pointer' }}>
+                        <span onClick={() => navigate(`/leases/${lease.id}`)} style={{ cursor: 'pointer', color: '#2563eb' }}>
                           {lease.lease_name}
                         </span>
                       </td>
