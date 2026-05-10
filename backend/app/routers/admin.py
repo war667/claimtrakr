@@ -121,6 +121,7 @@ async def login_events(limit: int = 200, db: AsyncSession = Depends(get_db)):
             "id": e.id,
             "username": e.username,
             "ip_address": e.ip_address,
+            "user_agent": e.user_agent,
             "logged_at": e.logged_at,
         }
         for e in events

@@ -42,9 +42,10 @@ async def record_login_event(request: Request, username: str, db: AsyncSession):
     ip = forwarded.split(",")[0].strip() if forwarded else (
         request.client.host if request.client else None
     )
-    logger.info("LOGIN user=%s ip=%s", username, ip)
+    user_agent = request.headers.get("User-Agent")
+    logger.info("LOGIN user=%s ip=%s ua=%s", username, ip, user_agent)
     from app.models.targets import LoginEvent
-    db.add(LoginEvent(username=username, ip_address=ip))
+    db.add(LoginEvent(username=username, ip_address=ip, user_agent=user_agent))
     try:
         await db.commit()
     except Exception:

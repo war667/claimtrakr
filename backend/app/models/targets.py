@@ -99,6 +99,7 @@ class LoginEvent(Base):
     username = Column(Text, nullable=False, index=True)
     ip_address = Column(Text, nullable=True)
     session_id = Column(Text, nullable=True)
+    user_agent = Column(Text, nullable=True)
     logged_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 

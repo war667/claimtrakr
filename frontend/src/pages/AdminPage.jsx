@@ -3,6 +3,24 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchMe, fetchUsers, createUser, updateUser, fetchLoginEvents, clearLoginEvents } from '../api/admin';
 import { format, parseISO } from 'date-fns';
 
+function parseUserAgent(ua) {
+  if (!ua) return '—';
+  const mobile = /Mobile|Android|iPhone|iPad/.test(ua);
+  let browser = 'Unknown';
+  if (/Edg\//.test(ua)) browser = 'Edge';
+  else if (/OPR\/|Opera/.test(ua)) browser = 'Opera';
+  else if (/Chrome\//.test(ua)) browser = 'Chrome';
+  else if (/Safari\//.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+  else if (/Firefox\//.test(ua)) browser = 'Firefox';
+  let os = 'Unknown OS';
+  if (/Windows NT/.test(ua)) os = 'Windows';
+  else if (/Mac OS X/.test(ua)) os = 'macOS';
+  else if (/Android/.test(ua)) os = 'Android';
+  else if (/iPhone|iPad/.test(ua)) os = 'iOS';
+  else if (/Linux/.test(ua)) os = 'Linux';
+  return `${browser} · ${os}${mobile ? ' · Mobile' : ''}`;
+}
+
 function Section({ title, children }) {
   return (
     <div style={{
@@ -232,7 +250,7 @@ export default function AdminPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
                 <tr>
-                  {['Time', 'Username', 'IP Address'].map((h) => (
+                  {['Time', 'Username', 'IP Address', 'Browser / Device'].map((h) => (
                     <th key={h} style={{
                       padding: '5px 10px', textAlign: 'left', fontSize: '11px',
                       color: '#06b6d4', fontWeight: 600, textTransform: 'uppercase',
@@ -250,6 +268,9 @@ export default function AdminPage() {
                     </td>
                     <td style={{ padding: '6px 10px', color: '#ffffff', fontWeight: 500 }}>{e.username}</td>
                     <td style={{ padding: '6px 10px', color: '#94a3b8', fontFamily: 'monospace' }}>{e.ip_address || '—'}</td>
+                    <td style={{ padding: '6px 10px', color: '#94a3b8', fontSize: '11px', maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.user_agent || ''}>
+                      {e.user_agent ? parseUserAgent(e.user_agent) : '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
