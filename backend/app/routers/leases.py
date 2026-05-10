@@ -12,9 +12,7 @@ from app.models.leases import Lease
 
 router = APIRouter(dependencies=[Depends(verify_credentials)])
 
-WORKFLOW_STATUSES = [
-    "prospecting", "due_diligence", "negotiating", "active", "expired", "terminated"
-]
+WORKFLOW_STATUSES = ["active", "expired", "terminated"]
 
 
 class LeaseCreateSchema(BaseModel):
@@ -27,7 +25,7 @@ class LeaseCreateSchema(BaseModel):
     renewal_terms: Optional[str] = None
     start_dt: Optional[str] = None
     expiration_dt: Optional[str] = None
-    workflow_status: str = "prospecting"
+    workflow_status: str = "active"
     notes: Optional[str] = None
 
 

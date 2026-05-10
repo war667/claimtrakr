@@ -4,23 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import { fetchLeases, createLease, updateLease, deleteLease } from '../api/leases';
 import { fetchClaim } from '../api/claims';
 
-const WORKFLOW_STATUSES = [
-  'prospecting', 'due_diligence', 'negotiating', 'active', 'expired', 'terminated',
-];
+const LEASE_STATUSES = ['active', 'expired', 'terminated'];
 
 const STATUS_COLORS = {
-  prospecting: '#6366f1',
-  due_diligence: '#f59e0b',
-  negotiating: '#06b6d4',
   active: '#22c55e',
   expired: '#ef4444',
   terminated: '#64748b',
 };
 
 const STATUS_LABELS = {
-  prospecting: 'Prospecting',
-  due_diligence: 'Due Diligence',
-  negotiating: 'Negotiating',
   active: 'Active',
   expired: 'Expired',
   terminated: 'Terminated',
@@ -42,7 +34,7 @@ function daysUntil(dateStr) {
   return Math.round((exp - today) / 86400000);
 }
 
-function WorkflowBadge({ status }) {
+function StatusBadge({ status }) {
   const color = STATUS_COLORS[status] || '#4b6079';
   return (
     <span style={{
@@ -61,31 +53,28 @@ function WorkflowBadge({ status }) {
 }
 
 function ExpirationCell({ dateStr, status }) {
-  if (!dateStr) return <span style={{ color: '#4b6079' }}>—</span>;
+  if (!dateStr) return <span style={{ color: '#ef4444', fontSize: '12px', fontWeight: 600 }}>⚠ No expiration set</span>;
   const days = daysUntil(dateStr);
-  const isExpired = status === 'expired' || (days != null && days < 0);
-  const color = isExpired ? '#64748b' : expirationColor(days);
+  const inactive = status === 'expired' || status === 'terminated';
+  const color = inactive ? '#64748b' : expirationColor(days);
   return (
-    <span>
+    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
       <span style={{ color: color || '#ffffff' }}>{dateStr}</span>
-      {days != null && days >= 0 && color && (
+      {!inactive && days != null && days >= 0 && (
         <span style={{
-          marginLeft: '6px',
-          background: color + '22',
-          border: `1px solid ${color}44`,
+          background: (color || '#4b6079') + '22',
+          border: `1px solid ${(color || '#4b6079')}44`,
           borderRadius: '4px',
           padding: '1px 6px',
           fontSize: '10px',
-          color,
-          fontWeight: 600,
+          color: color || '#4b6079',
+          fontWeight: 700,
         }}>
           {days}d
         </span>
       )}
-      {days != null && days < 0 && (
-        <span style={{ marginLeft: '6px', fontSize: '10px', color: '#64748b' }}>
-          {Math.abs(days)}d ago
-        </span>
+      {!inactive && days != null && days < 0 && (
+        <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 600 }}>EXPIRED</span>
       )}
     </span>
   );
@@ -101,7 +90,7 @@ const EMPTY_FORM = {
   renewal_terms: '',
   start_dt: '',
   expiration_dt: '',
-  workflow_status: 'prospecting',
+  workflow_status: 'active',
   notes: '',
 };
 
@@ -116,7 +105,7 @@ function LeaseModal({ lease, onClose, onSave }) {
     renewal_terms: lease.renewal_terms || '',
     start_dt: lease.start_dt || '',
     expiration_dt: lease.expiration_dt || '',
-    workflow_status: lease.workflow_status || 'prospecting',
+    workflow_status: lease.workflow_status || 'active',
     notes: lease.notes || '',
   } : { ...EMPTY_FORM });
 
@@ -148,6 +137,10 @@ function LeaseModal({ lease, onClose, onSave }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    if (!form.expiration_dt) {
+      setError('Expiration date is required');
+      return;
+    }
     const body = {
       lease_name: form.lease_name,
       serial_nr: form.serial_nr || null,
@@ -157,7 +150,7 @@ function LeaseModal({ lease, onClose, onSave }) {
       annual_payment: form.annual_payment ? parseFloat(form.annual_payment) : null,
       renewal_terms: form.renewal_terms || null,
       start_dt: form.start_dt || null,
-      expiration_dt: form.expiration_dt || null,
+      expiration_dt: form.expiration_dt,
       workflow_status: form.workflow_status,
       notes: form.notes || null,
     };
@@ -174,13 +167,17 @@ function LeaseModal({ lease, onClose, onSave }) {
     borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px',
     boxSizing: 'border-box',
   };
-  const labelStyle = { fontSize: '11px', fontWeight: 600, color: '#06b6d4', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' };
+  const labelStyle = {
+    fontSize: '11px', fontWeight: 600, color: '#06b6d4', marginBottom: '4px',
+    display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em',
+  };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-    }}
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+      }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div style={{
@@ -223,9 +220,9 @@ function LeaseModal({ lease, onClose, onSave }) {
             </div>
 
             <div>
-              <label style={labelStyle}>Workflow Status</label>
+              <label style={labelStyle}>Status</label>
               <select style={inputStyle} value={form.workflow_status} onChange={(e) => set('workflow_status', e.target.value)}>
-                {WORKFLOW_STATUSES.map((s) => (
+                {LEASE_STATUSES.map((s) => (
                   <option key={s} value={s}>{STATUS_LABELS[s]}</option>
                 ))}
               </select>
@@ -257,8 +254,18 @@ function LeaseModal({ lease, onClose, onSave }) {
             </div>
 
             <div>
-              <label style={labelStyle}>Expiration Date</label>
-              <input style={inputStyle} type="date" value={form.expiration_dt} onChange={(e) => set('expiration_dt', e.target.value)} />
+              <label style={labelStyle}>
+                Expiration Date <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                style={{
+                  ...inputStyle,
+                  border: !form.expiration_dt ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(255,255,255,0.12)',
+                }}
+                type="date"
+                value={form.expiration_dt}
+                onChange={(e) => set('expiration_dt', e.target.value)}
+              />
             </div>
 
             <div style={{ gridColumn: '1 / -1' }}>
@@ -298,9 +305,6 @@ function LeaseModal({ lease, onClose, onSave }) {
 
 const FILTER_TABS = [
   { label: 'All', value: '' },
-  { label: 'Prospecting', value: 'prospecting' },
-  { label: 'Due Diligence', value: 'due_diligence' },
-  { label: 'Negotiating', value: 'negotiating' },
   { label: 'Active', value: 'active' },
   { label: 'Expired', value: 'expired' },
   { label: 'Terminated', value: 'terminated' },
@@ -309,9 +313,9 @@ const FILTER_TABS = [
 export default function LeasesPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [filterStatus, setFilterStatus] = useState('');
-  const [modal, setModal] = useState(null); // null | 'create' | lease object
-  const [deleteConfirm, setDeleteConfirm] = useState(null); // lease id
+  const [filterStatus, setFilterStatus] = useState('active');
+  const [modal, setModal] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const { data: leases = [], isLoading } = useQuery({
     queryKey: ['leases', filterStatus],
@@ -337,14 +341,15 @@ export default function LeasesPage() {
     },
   });
 
-  // Count alerts
   const alertCounts = leases.reduce((acc, l) => {
-    if (l.expiration_dt && l.workflow_status !== 'expired' && l.workflow_status !== 'terminated') {
+    if (l.workflow_status === 'active' && l.expiration_dt) {
       const d = daysUntil(l.expiration_dt);
       if (d != null && d >= 0 && d <= 90) acc++;
     }
     return acc;
   }, 0);
+
+  const noExpiration = leases.filter((l) => l.workflow_status === 'active' && !l.expiration_dt).length;
 
   const thStyle = {
     padding: '8px 12px', textAlign: 'left', fontSize: '11px',
@@ -356,14 +361,9 @@ export default function LeasesPage() {
 
   return (
     <div style={{ padding: '24px', maxWidth: '1200px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#ffffff' }}>Leases</h1>
-          {alertCounts > 0 && (
-            <div style={{ marginTop: '4px', fontSize: '12px', color: '#f59e0b' }}>
-              {alertCounts} lease{alertCounts !== 1 ? 's' : ''} expiring within 90 days
-            </div>
-          )}
         </div>
         <button
           onClick={() => setModal('create')}
@@ -376,6 +376,26 @@ export default function LeasesPage() {
           + Add Lease
         </button>
       </div>
+
+      {/* Alert banners */}
+      {noExpiration > 0 && (
+        <div style={{
+          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+          borderRadius: '8px', padding: '10px 16px', marginBottom: '10px',
+          fontSize: '13px', color: '#fca5a5',
+        }}>
+          ⚠ {noExpiration} active lease{noExpiration !== 1 ? 's have' : ' has'} no expiration date set
+        </div>
+      )}
+      {alertCounts > 0 && (
+        <div style={{
+          background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+          borderRadius: '8px', padding: '10px 16px', marginBottom: '10px',
+          fontSize: '13px', color: '#fcd34d',
+        }}>
+          ⏰ {alertCounts} active lease{alertCounts !== 1 ? 's are' : ' is'} expiring within 90 days
+        </div>
+      )}
 
       {/* Filter tabs */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
@@ -412,10 +432,10 @@ export default function LeasesPage() {
             <div style={{ fontSize: '32px', marginBottom: '12px' }}>📄</div>
             <div style={{ color: '#4b6079', fontSize: '14px' }}>No leases found</div>
             <div style={{ color: '#4b6079', fontSize: '12px', marginTop: '4px' }}>
-              {filterStatus ? 'Try a different filter or ' : ''}<span
+              <span
                 onClick={() => setModal('create')}
                 style={{ color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
-              >add a lease</span>
+              >Add a lease</span>
             </div>
           </div>
         ) : (
@@ -436,16 +456,13 @@ export default function LeasesPage() {
               <tbody>
                 {leases.map((lease) => {
                   const days = daysUntil(lease.expiration_dt);
-                  const expColor = (lease.workflow_status !== 'expired' && lease.workflow_status !== 'terminated')
-                    ? expirationColor(days)
-                    : null;
-                  const rowBg = expColor
-                    ? `${expColor}08`
-                    : 'transparent';
+                  const expColor = lease.workflow_status === 'active' ? expirationColor(days) : null;
+                  const missingExp = lease.workflow_status === 'active' && !lease.expiration_dt;
+                  const rowBg = missingExp ? 'rgba(239,68,68,0.05)' : expColor ? `${expColor}08` : 'transparent';
                   return (
                     <tr
                       key={lease.id}
-                      style={{ background: rowBg, cursor: 'pointer' }}
+                      style={{ background: rowBg }}
                       onMouseEnter={(e) => e.currentTarget.style.background = expColor ? `${expColor}18` : 'rgba(255,255,255,0.03)'}
                       onMouseLeave={(e) => e.currentTarget.style.background = rowBg}
                     >
@@ -464,7 +481,7 @@ export default function LeasesPage() {
                           </span>
                         ) : <span style={{ color: '#4b6079' }}>—</span>}
                       </td>
-                      <td style={tdStyle}><WorkflowBadge status={lease.workflow_status} /></td>
+                      <td style={tdStyle}><StatusBadge status={lease.workflow_status} /></td>
                       <td style={{ ...tdStyle, color: '#94a3b8' }}>{lease.lessor || <span style={{ color: '#4b6079' }}>—</span>}</td>
                       <td style={{ ...tdStyle, color: '#94a3b8' }}>
                         {lease.acreage != null ? lease.acreage.toLocaleString() : <span style={{ color: '#4b6079' }}>—</span>}
@@ -508,7 +525,6 @@ export default function LeasesPage() {
         )}
       </div>
 
-      {/* Create/Edit modal */}
       {modal && (
         <LeaseModal
           lease={modal === 'create' ? null : modal}
@@ -519,7 +535,6 @@ export default function LeasesPage() {
         />
       )}
 
-      {/* Delete confirmation */}
       {deleteConfirm && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
@@ -530,9 +545,7 @@ export default function LeasesPage() {
             borderRadius: '12px', padding: '24px', width: '360px',
           }}>
             <div style={{ fontWeight: 600, color: '#ffffff', marginBottom: '8px' }}>Delete lease?</div>
-            <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
-              This action cannot be undone.
-            </div>
+            <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>This action cannot be undone.</div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => setDeleteConfirm(null)}
