@@ -43,6 +43,12 @@ class LeaseUpdateSchema(BaseModel):
     notes: Optional[str] = None
 
 
+def _parse_date(s: Optional[str]) -> Optional[date_type]:
+    if not s:
+        return None
+    return date_type.fromisoformat(s)
+
+
 def _lease_to_dict(lease: Lease) -> dict:
     return {
         "id": lease.id,
@@ -129,8 +135,8 @@ async def create_lease(
         acreage=body.acreage,
         annual_payment=body.annual_payment,
         renewal_terms=body.renewal_terms,
-        start_dt=body.start_dt or None,
-        expiration_dt=body.expiration_dt or None,
+        start_dt=_parse_date(body.start_dt),
+        expiration_dt=_parse_date(body.expiration_dt),
         workflow_status=body.workflow_status,
         notes=body.notes,
         created_by=username,
@@ -167,9 +173,9 @@ async def update_lease(
     if body.renewal_terms is not None:
         lease.renewal_terms = body.renewal_terms
     if body.start_dt is not None:
-        lease.start_dt = body.start_dt or None
+        lease.start_dt = _parse_date(body.start_dt)
     if body.expiration_dt is not None:
-        lease.expiration_dt = body.expiration_dt or None
+        lease.expiration_dt = _parse_date(body.expiration_dt)
     if body.workflow_status is not None:
         if body.workflow_status not in WORKFLOW_STATUSES:
             raise HTTPException(status_code=400, detail="Invalid workflow_status")
