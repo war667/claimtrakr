@@ -8,11 +8,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import verify_credentials
 from app.database import get_db
-from app.models.leases import Lease
+from app.models.leases import Lease, LeaseCriticalDate
 
 router = APIRouter(dependencies=[Depends(verify_credentials)])
 
 WORKFLOW_STATUSES = ["active", "expired", "terminated"]
+
+DATE_TYPES = [
+    "renewal_notice",
+    "option_exercise",
+    "payment_due",
+    "work_commitment",
+    "rent_review",
+    "custom",
+]
 
 
 class LeaseCreateSchema(BaseModel):
@@ -43,6 +52,14 @@ class LeaseUpdateSchema(BaseModel):
     notes: Optional[str] = None
 
 
+class CriticalDateSchema(BaseModel):
+    label: str
+    date_type: str = "custom"
+    critical_date: str
+    alert_days: int = 60
+    notes: Optional[str] = None
+
+
 def _parse_date(s: Optional[str]) -> Optional[date_type]:
     if not s:
         return None
@@ -66,6 +83,19 @@ def _lease_to_dict(lease: Lease) -> dict:
         "created_by": lease.created_by,
         "created_at": lease.created_at.isoformat() if lease.created_at else None,
         "updated_at": lease.updated_at.isoformat() if lease.updated_at else None,
+    }
+
+
+def _cd_to_dict(cd: LeaseCriticalDate) -> dict:
+    return {
+        "id": cd.id,
+        "lease_id": cd.lease_id,
+        "label": cd.label,
+        "date_type": cd.date_type,
+        "critical_date": str(cd.critical_date),
+        "alert_days": cd.alert_days,
+        "notes": cd.notes,
+        "created_at": cd.created_at.isoformat() if cd.created_at else None,
     }
 
 
@@ -110,6 +140,36 @@ async def expiring_leases(
     ]
 
 
+@router.get("/upcoming-dates")
+async def upcoming_critical_dates(
+    days: int = 90,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        text("""
+            SELECT lcd.id, lcd.lease_id, l.lease_name, l.workflow_status,
+                   lcd.label, lcd.date_type, lcd.critical_date, lcd.alert_days,
+                   (lcd.critical_date - CURRENT_DATE) AS days_remaining
+            FROM lease_critical_dates lcd
+            JOIN leases l ON l.id = lcd.lease_id
+            WHERE lcd.critical_date >= CURRENT_DATE
+              AND lcd.critical_date <= CURRENT_DATE + :days
+              AND l.workflow_status = 'active'
+            ORDER BY lcd.critical_date ASC
+        """),
+        {"days": days},
+    )
+    rows = result.fetchall()
+    return [
+        {
+            "id": r[0], "lease_id": r[1], "lease_name": r[2],
+            "workflow_status": r[3], "label": r[4], "date_type": r[5],
+            "critical_date": str(r[6]), "alert_days": r[7], "days_remaining": r[8],
+        }
+        for r in rows
+    ]
+
+
 @router.get("/{lease_id}")
 async def get_lease(lease_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Lease).where(Lease.id == lease_id))
@@ -126,7 +186,7 @@ async def create_lease(
     db: AsyncSession = Depends(get_db),
 ):
     if body.workflow_status not in WORKFLOW_STATUSES:
-        raise HTTPException(status_code=400, detail=f"Invalid workflow_status")
+        raise HTTPException(status_code=400, detail="Invalid workflow_status")
     lease = Lease(
         lease_name=body.lease_name,
         serial_nr=body.serial_nr or None,
@@ -196,4 +256,84 @@ async def delete_lease(lease_id: int, db: AsyncSession = Depends(get_db)):
     if not lease:
         raise HTTPException(status_code=404, detail="Lease not found")
     await db.delete(lease)
+    await db.commit()
+
+
+# --- Critical Dates ---
+
+@router.get("/{lease_id}/dates")
+async def list_critical_dates(lease_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(LeaseCriticalDate)
+        .where(LeaseCriticalDate.lease_id == lease_id)
+        .order_by(LeaseCriticalDate.critical_date)
+    )
+    return [_cd_to_dict(cd) for cd in result.scalars().all()]
+
+
+@router.post("/{lease_id}/dates", status_code=201)
+async def create_critical_date(
+    lease_id: int,
+    body: CriticalDateSchema,
+    db: AsyncSession = Depends(get_db),
+):
+    lease = await db.get(Lease, lease_id)
+    if not lease:
+        raise HTTPException(status_code=404, detail="Lease not found")
+    cd = LeaseCriticalDate(
+        lease_id=lease_id,
+        label=body.label,
+        date_type=body.date_type,
+        critical_date=_parse_date(body.critical_date),
+        alert_days=body.alert_days,
+        notes=body.notes,
+    )
+    db.add(cd)
+    await db.commit()
+    await db.refresh(cd)
+    return _cd_to_dict(cd)
+
+
+@router.put("/{lease_id}/dates/{date_id}")
+async def update_critical_date(
+    lease_id: int,
+    date_id: int,
+    body: CriticalDateSchema,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(LeaseCriticalDate).where(
+            LeaseCriticalDate.id == date_id,
+            LeaseCriticalDate.lease_id == lease_id,
+        )
+    )
+    cd = result.scalar_one_or_none()
+    if not cd:
+        raise HTTPException(status_code=404, detail="Critical date not found")
+    cd.label = body.label
+    cd.date_type = body.date_type
+    cd.critical_date = _parse_date(body.critical_date)
+    cd.alert_days = body.alert_days
+    cd.notes = body.notes or None
+    await db.commit()
+    await db.refresh(cd)
+    return _cd_to_dict(cd)
+
+
+@router.delete("/{lease_id}/dates/{date_id}", status_code=204)
+async def delete_critical_date(
+    lease_id: int,
+    date_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(LeaseCriticalDate).where(
+            LeaseCriticalDate.id == date_id,
+            LeaseCriticalDate.lease_id == lease_id,
+        )
+    )
+    cd = result.scalar_one_or_none()
+    if not cd:
+        raise HTTPException(status_code=404, detail="Critical date not found")
+    await db.delete(cd)
     await db.commit()

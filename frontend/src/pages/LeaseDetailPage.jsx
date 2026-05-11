@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchLease, updateLease, deleteLease } from '../api/leases';
+import { fetchLease, updateLease, deleteLease, fetchCriticalDates, createCriticalDate, updateCriticalDate, deleteCriticalDate } from '../api/leases';
 import { fetchClaim } from '../api/claims';
 
 const STATUS_COLORS = {
@@ -17,6 +17,25 @@ const STATUS_LABELS = {
 };
 
 const LEASE_STATUSES = ['active', 'expired', 'terminated'];
+
+const DATE_TYPE_LABELS = {
+  renewal_notice: 'Renewal Notice Deadline',
+  option_exercise: 'Option Exercise Deadline',
+  payment_due: 'Payment Due',
+  work_commitment: 'Work Commitment Deadline',
+  rent_review: 'Rent / Royalty Review',
+  custom: 'Custom',
+};
+
+const EMPTY_CD_FORM = { label: '', date_type: 'custom', critical_date: '', alert_days: 60, notes: '' };
+
+function cdExpirationColor(days) {
+  if (days == null || days < 0) return '#ef4444';
+  if (days <= 30) return '#ef4444';
+  if (days <= 60) return '#f59e0b';
+  if (days <= 90) return '#eab308';
+  return '#22c55e';
+}
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
@@ -194,10 +213,33 @@ export default function LeaseDetailPage() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [cdForm, setCdForm] = useState(null); // null | 'new' | existing cd object
+  const [cdDeleteConfirm, setCdDeleteConfirm] = useState(null);
 
   const { data: lease, isLoading } = useQuery({
     queryKey: ['lease', id],
     queryFn: () => fetchLease(id),
+  });
+
+  const { data: criticalDates = [] } = useQuery({
+    queryKey: ['lease-dates', id],
+    queryFn: () => fetchCriticalDates(id),
+    enabled: !!id,
+  });
+
+  const createCdMutation = useMutation({
+    mutationFn: (body) => createCriticalDate(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lease-dates', id] }); setCdForm(null); },
+  });
+
+  const updateCdMutation = useMutation({
+    mutationFn: ({ dateId, body }) => updateCriticalDate(id, dateId, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lease-dates', id] }); setCdForm(null); },
+  });
+
+  const deleteCdMutation = useMutation({
+    mutationFn: (dateId) => deleteCriticalDate(id, dateId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lease-dates', id] }); setCdDeleteConfirm(null); },
   });
 
   const { data: claim } = useQuery({
@@ -327,6 +369,70 @@ export default function LeaseDetailPage() {
               </p>
             </Section>
           )}
+
+          {/* Critical Dates */}
+          <Section title={
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Critical Dates</span>
+              <button
+                onClick={() => setCdForm({ ...EMPTY_CD_FORM })}
+                style={{ background: '#1e3a5f', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '5px', padding: '2px 10px', fontSize: '11px', color: '#93c5fd', cursor: 'pointer' }}
+              >
+                + Add Date
+              </button>
+            </div>
+          }>
+            {criticalDates.length === 0 ? (
+              <p style={{ margin: 0, fontSize: '13px', color: '#4b6079', fontStyle: 'italic' }}>
+                No critical dates — add renewal notices, payment deadlines, option exercise dates, etc.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {criticalDates.map((cd) => {
+                  const days = daysUntil(cd.critical_date);
+                  const color = cdExpirationColor(days);
+                  const withinAlert = days != null && days <= cd.alert_days;
+                  return (
+                    <div key={cd.id} style={{
+                      background: withinAlert ? color + '10' : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${withinAlert ? color + '44' : 'rgba(255,255,255,0.06)'}`,
+                      borderRadius: '8px', padding: '10px 12px',
+                      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px',
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff' }}>{cd.label}</span>
+                          <span style={{ fontSize: '10px', color: '#4b6079', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', padding: '1px 6px' }}>
+                            {DATE_TYPE_LABELS[cd.date_type] || cd.date_type}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '12px', color: withinAlert ? color : '#94a3b8' }}>{cd.critical_date}</span>
+                          {days != null && (
+                            <span style={{ fontSize: '11px', fontWeight: 600, color }}>
+                              {days >= 0 ? `${days}d remaining` : `${Math.abs(days)}d overdue`}
+                            </span>
+                          )}
+                          <span style={{ fontSize: '11px', color: '#4b6079' }}>Alert {cd.alert_days}d before</span>
+                        </div>
+                        {cd.notes && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{cd.notes}</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                        <button onClick={() => setCdForm({ ...cd, critical_date: cd.critical_date })}
+                          style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', padding: '3px 8px', fontSize: '11px', color: '#94a3b8', cursor: 'pointer' }}>
+                          Edit
+                        </button>
+                        <button onClick={() => setCdDeleteConfirm(cd.id)}
+                          style={{ background: 'none', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '5px', padding: '3px 8px', fontSize: '11px', color: '#ef4444', cursor: 'pointer' }}>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
         </div>
 
         <div>
@@ -381,6 +487,77 @@ export default function LeaseDetailPage() {
           onClose={() => setEditing(false)}
           onSave={(body) => updateMutation.mutateAsync(body)}
         />
+      )}
+
+      {/* Critical date form modal */}
+      {cdForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={(e) => e.target === e.currentTarget && setCdForm(null)}>
+          <div style={{ background: '#0a1628', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '14px', padding: '24px', width: '480px', maxWidth: '95vw' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 700, color: '#ffffff' }}>
+              {cdForm.id ? 'Edit Critical Date' : 'Add Critical Date'}
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {[
+                { label: 'Label *', key: 'label', full: true, type: 'text', placeholder: 'e.g. Renewal Notice Deadline' },
+              ].map(({ label, key, full, type, placeholder }) => (
+                <div key={key} style={{ gridColumn: full ? '1 / -1' : undefined }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+                  <input style={{ width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box' }}
+                    type={type} value={cdForm[key] || ''} placeholder={placeholder}
+                    onChange={(e) => setCdForm((f) => ({ ...f, [key]: e.target.value }))} />
+                </div>
+              ))}
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</label>
+                <select style={{ width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box' }}
+                  value={cdForm.date_type} onChange={(e) => setCdForm((f) => ({ ...f, date_type: e.target.value }))}>
+                  {Object.entries(DATE_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date *</label>
+                <input style={{ width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box' }}
+                  type="date" value={cdForm.critical_date || ''} onChange={(e) => setCdForm((f) => ({ ...f, critical_date: e.target.value }))} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Alert (days before)</label>
+                <input style={{ width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box' }}
+                  type="number" min="1" value={cdForm.alert_days} onChange={(e) => setCdForm((f) => ({ ...f, alert_days: parseInt(e.target.value) || 60 }))} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes</label>
+                <textarea style={{ width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box', minHeight: '60px', resize: 'vertical' }}
+                  value={cdForm.notes || ''} onChange={(e) => setCdForm((f) => ({ ...f, notes: e.target.value }))} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+              <button onClick={() => setCdForm(null)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '8px 16px', color: '#94a3b8', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+              <button
+                disabled={!cdForm.label || !cdForm.critical_date}
+                onClick={() => {
+                  const body = { label: cdForm.label, date_type: cdForm.date_type, critical_date: cdForm.critical_date, alert_days: cdForm.alert_days, notes: cdForm.notes || null };
+                  cdForm.id ? updateCdMutation.mutate({ dateId: cdForm.id, body }) : createCdMutation.mutate(body);
+                }}
+                style={{ background: '#2563eb', border: 'none', borderRadius: '6px', padding: '8px 18px', color: '#ffffff', cursor: 'pointer', fontSize: '13px', fontWeight: 600, opacity: (!cdForm.label || !cdForm.critical_date) ? 0.5 : 1 }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cdDeleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#0a1628', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '24px', width: '340px' }}>
+            <div style={{ fontWeight: 600, color: '#ffffff', marginBottom: '8px' }}>Remove this critical date?</div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+              <button onClick={() => setCdDeleteConfirm(null)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '8px 16px', color: '#94a3b8', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+              <button onClick={() => deleteCdMutation.mutate(cdDeleteConfirm)} style={{ background: '#ef4444', border: 'none', borderRadius: '6px', padding: '8px 16px', color: '#ffffff', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>Remove</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {deleteConfirm && (

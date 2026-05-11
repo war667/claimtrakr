@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchStats } from '../api/reference';
 import { fetchIngestionStatus } from '../api/ingest';
-import { fetchExpiringLeases } from '../api/leases';
+import { fetchExpiringLeases, fetchUpcomingDates } from '../api/leases';
 import { INGESTION_STATUS_COLORS } from '../constants';
 import useIsMobile from '../hooks/useIsMobile';
 import { format, parseISO } from 'date-fns';
@@ -75,6 +75,12 @@ export default function DashboardPage() {
   const { data: expiringLeases = [] } = useQuery({
     queryKey: ['expiring-leases'],
     queryFn: () => fetchExpiringLeases(90),
+    refetchInterval: 300_000,
+  });
+
+  const { data: upcomingDates = [] } = useQuery({
+    queryKey: ['upcoming-dates'],
+    queryFn: () => fetchUpcomingDates(90),
     refetchInterval: 300_000,
   });
 
@@ -221,6 +227,50 @@ export default function DashboardPage() {
                       }}>
                         {d}d
                       </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Upcoming Critical Dates */}
+      {upcomingDates.length > 0 && (
+        <div style={{
+          background: '#0f2039',
+          border: '1px solid rgba(239,68,68,0.25)',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '20px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
+            <h2 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Upcoming Critical Dates
+            </h2>
+            <span onClick={() => navigate('/leases')} style={{ fontSize: '12px', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}>
+              View leases →
+            </span>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ background: '#0d1f35' }}>
+                {['Lease', 'Date', 'Critical Date', 'Days Left'].map((h) => (
+                  <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {upcomingDates.map((d) => {
+                const color = d.days_remaining <= 30 ? '#ef4444' : d.days_remaining <= 60 ? '#f59e0b' : '#eab308';
+                return (
+                  <tr key={d.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '7px 10px', color: '#2563eb', cursor: 'pointer', fontWeight: 500 }} onClick={() => navigate(`/leases/${d.lease_id}`)}>{d.lease_name}</td>
+                    <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{d.label}</td>
+                    <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{d.critical_date}</td>
+                    <td style={{ padding: '7px 10px' }}>
+                      <span style={{ background: color + '22', border: `1px solid ${color}44`, borderRadius: '9999px', padding: '2px 10px', fontSize: '11px', fontWeight: 700, color }}>{d.days_remaining}d</span>
                     </td>
                   </tr>
                 );

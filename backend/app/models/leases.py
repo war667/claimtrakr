@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Date, Integer, Numeric, Text, TIMESTAMP
+from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, Text, TIMESTAMP
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -16,8 +17,25 @@ class Lease(Base):
     renewal_terms = Column(Text)
     start_dt = Column(Date)
     expiration_dt = Column(Date)
-    workflow_status = Column(Text, nullable=False, default="prospecting")
+    workflow_status = Column(Text, nullable=False, default="active")
     notes = Column(Text)
     created_by = Column(Text)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    critical_dates = relationship("LeaseCriticalDate", back_populates="lease", cascade="all, delete-orphan", order_by="LeaseCriticalDate.critical_date")
+
+
+class LeaseCriticalDate(Base):
+    __tablename__ = "lease_critical_dates"
+
+    id = Column(Integer, primary_key=True)
+    lease_id = Column(Integer, ForeignKey("leases.id", ondelete="CASCADE"), nullable=False)
+    label = Column(Text, nullable=False)
+    date_type = Column(Text, nullable=False, default="custom")
+    critical_date = Column(Date, nullable=False)
+    alert_days = Column(Integer, nullable=False, default=60)
+    notes = Column(Text)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    lease = relationship("Lease", back_populates="critical_dates")
