@@ -146,6 +146,7 @@ export default function TablePage() {
   const [searchParams] = useSearchParams();
   const [filters, setFilters] = useState(() => {
     const f = {};
+    if (searchParams.get('search')) f.search = searchParams.get('search');
     if (searchParams.get('status')) f.status = searchParams.get('status');
     if (searchParams.get('closed_within_days')) f.closed_within_days = parseInt(searchParams.get('closed_within_days'));
     if (searchParams.get('changed_within_days')) f.changed_within_days = parseInt(searchParams.get('changed_within_days'));
