@@ -325,6 +325,7 @@ export default function PaymentsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead style={{ background: '#0d1f35' }}>
                 <tr>
+                  <th style={{ ...thStyle, width: '28px' }} title="Has map data"></th>
                   <th style={thStyle}>Serial #</th>
                   <th style={thStyle}>Claim Name</th>
                   <th style={thStyle}>Claimant</th>
@@ -347,6 +348,10 @@ export default function PaymentsPage() {
                       onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                       onMouseLeave={(e) => e.currentTarget.style.background = p.is_paid ? 'rgba(34,197,94,0.04)' : d != null && d <= 30 ? 'rgba(239,68,68,0.05)' : 'transparent'}
                     >
+                      <td style={{ ...tdStyle, width: '28px', textAlign: 'center', padding: '9px 4px' }}
+                          title={p.has_map_data ? 'Visible on map' : 'Not in map data'}>
+                        <span style={{ fontSize: '14px', opacity: p.has_map_data ? 1 : 0.2 }}>🗺</span>
+                      </td>
                       <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '12px' }}>
                         <span
                           onClick={() => navigate(`/table?search=${p.serial_nr}`)}

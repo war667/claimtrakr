@@ -290,7 +290,8 @@ async def list_payments(
     where = " AND ".join(conditions)
     result = await db.execute(text(f"""
         SELECT {SELECT_COLS},
-               (next_pmt_due_dt - CURRENT_DATE) AS days_remaining
+               (next_pmt_due_dt - CURRENT_DATE) AS days_remaining,
+               EXISTS(SELECT 1 FROM claims c WHERE c.serial_nr = blm_payment_tracking.serial_nr) AS has_map_data
         FROM blm_payment_tracking
         WHERE {where}
         ORDER BY next_pmt_due_dt ASC, serial_nr ASC
@@ -300,6 +301,7 @@ async def list_payments(
     for r in rows:
         d = _row_to_dict(r)
         d["days_remaining"] = r[20]
+        d["has_map_data"] = r[21]
         out.append(d)
     return out
 
