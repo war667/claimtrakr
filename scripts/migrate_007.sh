@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-docker compose exec db psql -U ct claimtrakr <<'SQL'
+docker compose exec -T db psql -U ct claimtrakr <<'SQL'
 CREATE TABLE IF NOT EXISTS blm_payment_tracking (
     id SERIAL PRIMARY KEY,
     serial_nr TEXT NOT NULL,
