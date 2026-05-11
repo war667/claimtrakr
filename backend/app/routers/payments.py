@@ -19,14 +19,39 @@ router = APIRouter(dependencies=[Depends(verify_credentials)])
 # Parsing
 # ---------------------------------------------------------------------------
 
-COLUMN_ORDER = [
-    "serial_nr", "legacy_lead_file_nr", "claim_name", "location_dt",
-    "closed_dt", "next_pmt_due_dt", "legacy_serial_nr", "case_disposition",
-    "lead_file_nr", "section", "meridian_twp_rng", "subdivision",
-    "case_land_remarks", "admin_state", "field_office", "geo_state",
-    "county", "claim_type", "customer_id", "claimant",
-    "legacy_alis_customer_id", "survey_type",
-]
+import re as _re
+
+# Normalize a column header: strip, lowercase, remove all whitespace
+def _norm_col(s: str) -> str:
+    return _re.sub(r'\s+', '', s.strip()).lower().lstrip('﻿')
+
+# Map normalized BLM column names → our field names
+HEADER_MAP = {
+    'serialnumber':           'serial_nr',
+    'legacyleadfilenumber':   'legacy_lead_file_nr',
+    'claimname':              'claim_name',
+    'dateoflocation':         'location_dt',
+    'closeddate':             'closed_dt',
+    'nextpmtduedate':         'next_pmt_due_dt',
+    'legacyserialnumber':     'legacy_serial_nr',
+    'casedisposition':        'case_disposition',
+    'leadfilenumber':         'lead_file_nr',
+    'section':                'section',
+    'meridiantownshiprange':  'meridian_twp_rng',
+    'subdivision':            'subdivision',
+    'caselandremarks':        'case_land_remarks',
+    'adminstate':             'admin_state',
+    'fieldoffice':            'field_office',
+    'geostate':               'geo_state',
+    'county':                 'county',
+    'claimtype':              'claim_type',
+    'customerid':             'customer_id',
+    'claimant':               'claimant',
+    'legacyaliscustomerid':   'legacy_alis_customer_id',
+    'surveytype':             'survey_type',
+}
+
+DATE_FIELDS = {'location_dt', 'closed_dt', 'next_pmt_due_dt'}
 
 
 def _parse_date(s: str) -> Optional[date]:
@@ -42,54 +67,48 @@ def _parse_date(s: str) -> Optional[date]:
 
 
 def _parse_rows(text_data: str) -> list[dict]:
-    """Parse BLM Geographic Index export (auto-detects tab or comma delimiter)."""
-    rows = []
-    first_line = text_data.strip().splitlines()[0] if text_data.strip() else ""
+    """Parse BLM Geographic Index export. Auto-detects delimiter, maps by header name."""
+    text_data = text_data.lstrip('﻿').strip()  # strip BOM
+    if not text_data:
+        return []
+
+    first_line = text_data.splitlines()[0]
     delimiter = "," if first_line.count(",") > first_line.count("\t") else "\t"
-    reader = csv.reader(io.StringIO(text_data.strip()), delimiter=delimiter)
-    header_seen = False
 
-    for row in reader:
-        if not any(c.strip() for c in row):
+    reader = csv.reader(io.StringIO(text_data), delimiter=delimiter)
+    col_map: dict[int, str] = {}  # position → field name
+    header_found = False
+    rows = []
+
+    for raw_row in reader:
+        if not any(c.strip() for c in raw_row):
             continue
 
-        joined = "\t".join(row).lower()
-        if not header_seen:
-            # Detect header by presence of known header words
-            if "serial" in joined or "claim name" in joined or "claimname" in joined:
-                header_seen = True
+        if not header_found:
+            # Try to map this row as header
+            mapping = {}
+            for i, cell in enumerate(raw_row):
+                field = HEADER_MAP.get(_norm_col(cell))
+                if field:
+                    mapping[i] = field
+            if 'serial_nr' in mapping.values():
+                col_map = mapping
+                header_found = True
                 continue
-            header_seen = True  # assume first non-empty row is data
+            # No header recognized yet — skip
 
-        if len(row) < 6:
+        if not col_map:
             continue
 
-        def g(i):
-            try:
-                return row[i].strip()
-            except IndexError:
-                return ""
+        rec: dict = {}
+        for i, field in col_map.items():
+            val = raw_row[i].strip() if i < len(raw_row) else ''
+            rec[field] = _parse_date(val) if field in DATE_FIELDS else (val or None)
 
-        rows.append({
-            "serial_nr": g(0),
-            "legacy_lead_file_nr": g(1),
-            "claim_name": g(2),
-            "location_dt": _parse_date(g(3)),
-            "closed_dt": _parse_date(g(4)),
-            "next_pmt_due_dt": _parse_date(g(5)),
-            "legacy_serial_nr": g(6),
-            "case_disposition": g(7),
-            "lead_file_nr": g(8),
-            "section": g(9),
-            "meridian_twp_rng": g(10),
-            "subdivision": g(11),
-            "admin_state": g(13),
-            "field_office": g(14),
-            "county": g(16),
-            "claim_type": g(17),
-            "customer_id": g(18),
-            "claimant": g(19),
-        })
+        # Must have serial_nr to be useful
+        if not rec.get('serial_nr'):
+            continue
+        rows.append(rec)
 
     return rows
 
@@ -195,8 +214,10 @@ async def import_report(
     rows = _parse_rows(body.text)
     aggregated = _aggregate(rows)
 
+    if not rows:
+        raise HTTPException(status_code=400, detail="Could not read any rows. Header row with 'Serial Number' not found — check the file format.")
     if not aggregated:
-        raise HTTPException(status_code=400, detail="No valid rows parsed. Check the pasted text.")
+        raise HTTPException(status_code=400, detail=f"Read {len(rows)} rows but none had a Next Pmt Due Date. Check that the correct report was exported.")
 
     upserted = 0
     for rec in aggregated:
