@@ -19,11 +19,10 @@ const STATUS_LABELS = {
 const LEASE_STATUSES = ['active', 'expired', 'terminated'];
 
 const DATE_TYPE_LABELS = {
-  renewal_notice: 'Renewal Notice Deadline',
-  option_exercise: 'Option Exercise Deadline',
-  payment_due: 'Payment Due',
-  work_commitment: 'Work Commitment Deadline',
-  rent_review: 'Rent / Royalty Review',
+  right_to_renew: 'Right to Renew',
+  sublease: 'Sublease',
+  renewal: 'Renewal',
+  lease_expiration: 'Lease Expiration',
   custom: 'Custom',
 };
 

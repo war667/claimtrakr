@@ -15,11 +15,10 @@ router = APIRouter(dependencies=[Depends(verify_credentials)])
 WORKFLOW_STATUSES = ["active", "expired", "terminated"]
 
 DATE_TYPES = [
-    "renewal_notice",
-    "option_exercise",
-    "payment_due",
-    "work_commitment",
-    "rent_review",
+    "right_to_renew",
+    "sublease",
+    "renewal",
+    "lease_expiration",
     "custom",
 ]
 
