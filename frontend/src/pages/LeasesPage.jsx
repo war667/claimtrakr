@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { fetchLeases, createLease, updateLease, deleteLease } from '../api/leases';
+import { fetchLeases, createLease, updateLease, deleteLease, fetchUpcomingDates } from '../api/leases';
 import { fetchClaim } from '../api/claims';
 
 const LEASE_STATUSES = ['active', 'expired', 'terminated'];
@@ -324,6 +324,17 @@ export default function LeasesPage() {
     refetchInterval: 60_000,
   });
 
+  const { data: upcomingDates = [] } = useQuery({
+    queryKey: ['upcomingDates', 365],
+    queryFn: () => fetchUpcomingDates(365),
+    staleTime: 60_000,
+  });
+
+  const nextDateByLease = upcomingDates.reduce((acc, d) => {
+    if (!acc[d.lease_id]) acc[d.lease_id] = d;
+    return acc;
+  }, {});
+
   const createMutation = useMutation({
     mutationFn: createLease,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['leases'] }),
@@ -451,6 +462,7 @@ export default function LeasesPage() {
                   <th style={thStyle}>Acreage</th>
                   <th style={thStyle}>Annual Payment</th>
                   <th style={thStyle}>Expiration</th>
+                  <th style={thStyle}>Next Critical Date</th>
                   <th style={thStyle}></th>
                 </tr>
               </thead>
@@ -494,6 +506,27 @@ export default function LeasesPage() {
                       </td>
                       <td style={tdStyle}>
                         <ExpirationCell dateStr={lease.expiration_dt} status={lease.workflow_status} />
+                      </td>
+                      <td style={tdStyle}>
+                        {(() => {
+                          const nd = nextDateByLease[lease.id];
+                          if (!nd) return <span style={{ color: '#4b6079' }}>—</span>;
+                          const d = nd.days_remaining;
+                          const color = d <= 30 ? '#ef4444' : d <= 60 ? '#f59e0b' : d <= 90 ? '#eab308' : '#94a3b8';
+                          return (
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontSize: '11px', color: '#06b6d4', fontWeight: 600 }}>{nd.label}</span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span style={{ color: color, fontSize: '12px' }}>{nd.critical_date}</span>
+                                <span style={{
+                                  background: color + '22', border: `1px solid ${color}44`,
+                                  borderRadius: '4px', padding: '1px 5px', fontSize: '10px',
+                                  color, fontWeight: 700,
+                                }}>{d}d</span>
+                              </span>
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
                         <button
