@@ -312,14 +312,16 @@ async def payments_summary(db: AsyncSession = Depends(get_db)):
             COUNT(*) FILTER (WHERE NOT ({DERIVED_PAID})) AS unpaid,
             COUNT(*) FILTER (WHERE NOT ({DERIVED_PAID}) AND next_pmt_due_dt <= CURRENT_DATE + 30) AS due_30,
             COUNT(*) FILTER (WHERE NOT ({DERIVED_PAID}) AND next_pmt_due_dt <= CURRENT_DATE + 90) AS due_90,
-            COUNT(DISTINCT meridian_twp_rng) AS township_ranges
-        FROM blm_payment_tracking
+            COUNT(DISTINCT pt.meridian_twp_rng) AS township_ranges,
+            COUNT(DISTINCT c.serial_nr) AS with_map_data
+        FROM blm_payment_tracking pt
+        LEFT JOIN claims c ON c.serial_nr = pt.serial_nr
     """))
     r = result.fetchone()
     return {
         "total": r[0], "unpaid": r[1],
         "due_30": r[2], "due_90": r[3],
-        "township_ranges": r[4],
+        "township_ranges": r[4], "with_map_data": r[5],
     }
 
 

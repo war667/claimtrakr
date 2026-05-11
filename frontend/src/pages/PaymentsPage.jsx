@@ -251,6 +251,13 @@ export default function PaymentsPage() {
             { label: 'Due ≤ 30 days', value: summary.due_30, color: '#ef4444' },
             { label: 'Due ≤ 90 days', value: summary.due_90, color: '#eab308' },
             { label: 'Township Ranges', value: summary.township_ranges, color: '#06b6d4' },
+            {
+              label: 'On Map',
+              value: summary.with_map_data != null
+                ? `${summary.with_map_data} / ${summary.total}`
+                : '—',
+              color: summary.with_map_data === summary.total ? '#22c55e' : '#f97316',
+            },
           ].map(({ label, value, color }) => (
             <div key={label} style={{
               background: '#0f2039', border: '1px solid rgba(255,255,255,0.08)',
