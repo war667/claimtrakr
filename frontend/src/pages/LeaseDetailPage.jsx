@@ -26,7 +26,7 @@ const DATE_TYPE_LABELS = {
   custom: 'Custom',
 };
 
-const EMPTY_CD_FORM = { label: '', date_type: 'custom', critical_date: '', alert_days: 60, notes: '' };
+const EMPTY_CD_FORM = { label: '', date_type: 'right_to_renew', critical_date: '', alert_days: 60, notes: '' };
 
 function cdExpirationColor(days) {
   if (days == null || days < 0) return '#ef4444';
@@ -497,45 +497,51 @@ export default function LeaseDetailPage() {
               {cdForm.id ? 'Edit Critical Date' : 'Add Critical Date'}
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              {[
-                { label: 'Label *', key: 'label', full: true, type: 'text', placeholder: 'e.g. Renewal Notice Deadline' },
-              ].map(({ label, key, full, type, placeholder }) => (
-                <div key={key} style={{ gridColumn: full ? '1 / -1' : undefined }}>
-                  <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
-                  <input style={{ width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box' }}
-                    type={type} value={cdForm[key] || ''} placeholder={placeholder}
-                    onChange={(e) => setCdForm((f) => ({ ...f, [key]: e.target.value }))} />
-                </div>
-              ))}
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</label>
-                <select style={{ width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box' }}
-                  value={cdForm.date_type} onChange={(e) => setCdForm((f) => ({ ...f, date_type: e.target.value }))}>
-                  {Object.entries(DATE_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date *</label>
-                <input style={{ width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box' }}
-                  type="date" value={cdForm.critical_date || ''} onChange={(e) => setCdForm((f) => ({ ...f, critical_date: e.target.value }))} />
-              </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Alert (days before)</label>
-                <input style={{ width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box' }}
-                  type="number" min="1" value={cdForm.alert_days} onChange={(e) => setCdForm((f) => ({ ...f, alert_days: parseInt(e.target.value) || 60 }))} />
-              </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes</label>
-                <textarea style={{ width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box', minHeight: '60px', resize: 'vertical' }}
-                  value={cdForm.notes || ''} onChange={(e) => setCdForm((f) => ({ ...f, notes: e.target.value }))} />
-              </div>
+              {(() => {
+                const s = { width: '100%', background: '#0d1f35', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '7px 10px', color: '#f1f5f9', fontSize: '13px', boxSizing: 'border-box' };
+                const lbl = (t) => <label style={{ fontSize: '11px', fontWeight: 600, color: '#06b6d4', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t}</label>;
+                return (
+                  <>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      {lbl('Type *')}
+                      <select style={s} value={cdForm.date_type}
+                        onChange={(e) => setCdForm((f) => ({ ...f, date_type: e.target.value, label: e.target.value === 'custom' ? '' : DATE_TYPE_LABELS[e.target.value] }))}>
+                        {Object.entries(DATE_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      </select>
+                    </div>
+                    {cdForm.date_type === 'custom' && (
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        {lbl('Custom Label *')}
+                        <input style={s} type="text" placeholder="e.g. Board Approval Deadline"
+                          value={cdForm.label} onChange={(e) => setCdForm((f) => ({ ...f, label: e.target.value }))} />
+                      </div>
+                    )}
+                    <div>
+                      {lbl('Date *')}
+                      <input style={s} type="date" value={cdForm.critical_date || ''}
+                        onChange={(e) => setCdForm((f) => ({ ...f, critical_date: e.target.value }))} />
+                    </div>
+                    <div>
+                      {lbl('Alert (days before)')}
+                      <input style={s} type="number" min="1" value={cdForm.alert_days}
+                        onChange={(e) => setCdForm((f) => ({ ...f, alert_days: parseInt(e.target.value) || 60 }))} />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      {lbl('Notes')}
+                      <textarea style={{ ...s, minHeight: '60px', resize: 'vertical' }}
+                        value={cdForm.notes || ''} onChange={(e) => setCdForm((f) => ({ ...f, notes: e.target.value }))} />
+                    </div>
+                  </>
+                );
+              })()}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
               <button onClick={() => setCdForm(null)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '8px 16px', color: '#94a3b8', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
               <button
-                disabled={!cdForm.label || !cdForm.critical_date}
+                disabled={!cdForm.critical_date || (cdForm.date_type === 'custom' && !cdForm.label)}
                 onClick={() => {
-                  const body = { label: cdForm.label, date_type: cdForm.date_type, critical_date: cdForm.critical_date, alert_days: cdForm.alert_days, notes: cdForm.notes || null };
+                  const label = cdForm.date_type === 'custom' ? cdForm.label : DATE_TYPE_LABELS[cdForm.date_type];
+                  const body = { label, date_type: cdForm.date_type, critical_date: cdForm.critical_date, alert_days: cdForm.alert_days, notes: cdForm.notes || null };
                   cdForm.id ? updateCdMutation.mutate({ dateId: cdForm.id, body }) : createCdMutation.mutate(body);
                 }}
                 style={{ background: '#2563eb', border: 'none', borderRadius: '6px', padding: '8px 18px', color: '#ffffff', cursor: 'pointer', fontSize: '13px', fontWeight: 600, opacity: (!cdForm.label || !cdForm.critical_date) ? 0.5 : 1 }}
