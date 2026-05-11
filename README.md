@@ -101,6 +101,41 @@ Data displayed is sourced from the BLM MLRS ArcGIS service and may not reflect t
 most current official records. Always verify directly with the BLM State Office before
 taking any staking action.
 
+## Leases & Critical Dates
+
+The Leases module tracks signed/active mineral leases separate from target claims.
+
+### Lease Workflow Statuses
+| Status | Meaning |
+|---|---|
+| Active | Lease is in effect |
+| Expired | Lease term has ended |
+| Terminated | Lease was cancelled or surrendered |
+
+### Expiration Alerts
+- **Dashboard** shows a banner when any active lease expires within 90 days
+- **Leases list** color-codes expiration: red (≤30 days), amber (≤60), yellow (≤90)
+- Leases with no expiration date set are flagged with a warning
+
+### Critical Dates
+Each lease can have multiple tracked dates (e.g., right-to-renew windows, sublease deadlines):
+
+1. Open the lease detail page
+2. Click **+ Add Date** in the Critical Dates section
+3. Select a type: Right to Renew, Sublease, Renewal, Lease Expiration, or Custom
+4. Set the date and how many days in advance to alert (default: 60)
+5. The Dashboard shows upcoming critical dates within 90 days
+
+Date types:
+- **Right to Renew** — window to exercise renewal option
+- **Sublease** — sublease agreement deadline
+- **Renewal** — lease renewal date
+- **Lease Expiration** — end of lease term
+- **Custom** — any other milestone (enter a custom label)
+
+### BLM Claim Lookup
+On a lease detail page, if the lease has a Serial Number (e.g., `UMC123456`), ClaimTrakr automatically fetches the current BLM status for that claim and displays it inline.
+
 ## Architecture
 
 ```

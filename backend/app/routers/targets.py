@@ -67,7 +67,7 @@ async def targets_report(db: AsyncSession = Depends(get_db)):
             COUNT(d.id) FILTER (WHERE d.id IS NOT NULL) AS checklist_total,
             COUNT(d.id) FILTER (WHERE d.is_complete = true) AS checklist_complete
         FROM targets t
-        JOIN claims c ON c.serial_nr = t.serial_nr
+        LEFT JOIN claims c ON c.serial_nr = t.serial_nr
         LEFT JOIN due_diligence_items d ON d.target_id = t.id
         WHERE t.workflow_status != 'archived'
         GROUP BY t.id, t.serial_nr, t.workflow_status, t.assigned_to,
