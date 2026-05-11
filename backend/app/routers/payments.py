@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from typing import Optional
@@ -19,11 +20,8 @@ router = APIRouter(dependencies=[Depends(verify_credentials)])
 # Parsing
 # ---------------------------------------------------------------------------
 
-import re as _re
-
-# Normalize a column header: strip, lowercase, remove all whitespace
 def _norm_col(s: str) -> str:
-    return _re.sub(r'\s+', '', s.strip()).lower().lstrip('﻿')
+    return re.sub(r'\s+', '', s.strip()).lower().lstrip('﻿')
 
 # Map normalized BLM column names → our field names
 HEADER_MAP = {
@@ -219,40 +217,45 @@ async def import_report(
     if not aggregated:
         raise HTTPException(status_code=400, detail=f"Read {len(rows)} rows but none had a Next Pmt Due Date. Check that the correct report was exported.")
 
-    upserted = 0
-    for rec in aggregated:
-        await db.execute(text("""
-            INSERT INTO blm_payment_tracking (
-                serial_nr, legacy_lead_file_nr, claim_name, claimant, customer_id,
-                location_dt, closed_dt, next_pmt_due_dt, case_disposition, lead_file_nr,
-                meridian_twp_rng, admin_state, field_office, county, claim_type, sections,
-                imported_at
-            ) VALUES (
-                :serial_nr, :legacy_lead_file_nr, :claim_name, :claimant, :customer_id,
-                :location_dt, :closed_dt, :next_pmt_due_dt, :case_disposition, :lead_file_nr,
-                :meridian_twp_rng, :admin_state, :field_office, :county, :claim_type, :sections,
-                NOW()
-            )
-            ON CONFLICT (serial_nr, next_pmt_due_dt) DO UPDATE SET
-                legacy_lead_file_nr = EXCLUDED.legacy_lead_file_nr,
-                claim_name          = EXCLUDED.claim_name,
-                claimant            = EXCLUDED.claimant,
-                customer_id         = EXCLUDED.customer_id,
-                location_dt         = EXCLUDED.location_dt,
-                closed_dt           = EXCLUDED.closed_dt,
-                case_disposition    = EXCLUDED.case_disposition,
-                lead_file_nr        = EXCLUDED.lead_file_nr,
-                meridian_twp_rng    = EXCLUDED.meridian_twp_rng,
-                admin_state         = EXCLUDED.admin_state,
-                field_office        = EXCLUDED.field_office,
-                county              = EXCLUDED.county,
-                claim_type          = EXCLUDED.claim_type,
-                sections            = EXCLUDED.sections,
-                imported_at         = NOW()
-        """), rec)
-        upserted += 1
+    try:
+        upserted = 0
+        for rec in aggregated:
+            await db.execute(text("""
+                INSERT INTO blm_payment_tracking (
+                    serial_nr, legacy_lead_file_nr, claim_name, claimant, customer_id,
+                    location_dt, closed_dt, next_pmt_due_dt, case_disposition, lead_file_nr,
+                    meridian_twp_rng, admin_state, field_office, county, claim_type, sections,
+                    imported_at
+                ) VALUES (
+                    :serial_nr, :legacy_lead_file_nr, :claim_name, :claimant, :customer_id,
+                    :location_dt, :closed_dt, :next_pmt_due_dt, :case_disposition, :lead_file_nr,
+                    :meridian_twp_rng, :admin_state, :field_office, :county, :claim_type, :sections,
+                    NOW()
+                )
+                ON CONFLICT (serial_nr, next_pmt_due_dt) DO UPDATE SET
+                    legacy_lead_file_nr = EXCLUDED.legacy_lead_file_nr,
+                    claim_name          = EXCLUDED.claim_name,
+                    claimant            = EXCLUDED.claimant,
+                    customer_id         = EXCLUDED.customer_id,
+                    location_dt         = EXCLUDED.location_dt,
+                    closed_dt           = EXCLUDED.closed_dt,
+                    case_disposition    = EXCLUDED.case_disposition,
+                    lead_file_nr        = EXCLUDED.lead_file_nr,
+                    meridian_twp_rng    = EXCLUDED.meridian_twp_rng,
+                    admin_state         = EXCLUDED.admin_state,
+                    field_office        = EXCLUDED.field_office,
+                    county              = EXCLUDED.county,
+                    claim_type          = EXCLUDED.claim_type,
+                    sections            = EXCLUDED.sections,
+                    imported_at         = NOW()
+            """), rec)
+            upserted += 1
 
-    await db.commit()
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}")
+
     return {"imported": upserted, "raw_rows": len(rows)}
 
 

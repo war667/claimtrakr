@@ -69,8 +69,13 @@ function ImportModal({ onClose, onImported }) {
       onImported(result);
       onClose();
     } catch (e) {
+      const status = e.response?.status;
       const detail = e.response?.data?.detail;
-      setError(Array.isArray(detail) ? detail.map((d) => d.msg).join(', ') : detail || 'Import failed');
+      const msg = Array.isArray(detail)
+        ? detail.map((d) => d.msg).join(', ')
+        : (typeof detail === 'string' ? detail : null);
+      setError(msg || (status ? `Server error ${status} — check server logs` : (e.message || 'Import failed')));
+      console.error('Import error:', e.response?.data ?? e.message);
     } finally {
       setImporting(false);
     }
