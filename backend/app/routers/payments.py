@@ -299,7 +299,7 @@ async def list_payments(
     out = []
     for r in rows:
         d = _row_to_dict(r)
-        d["days_remaining"] = r[22]
+        d["days_remaining"] = r[20]
         out.append(d)
     return out
 
