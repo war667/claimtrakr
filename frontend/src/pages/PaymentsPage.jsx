@@ -5,6 +5,7 @@ import {
   importPaymentReport, fetchPayments, fetchPaymentsSummary,
   fetchTownshipRanges, deletePaymentEntry,
 } from '../api/payments';
+import { createTarget, fetchTargets } from '../api/targets';
 
 const DISPOSITION_COLORS = {
   'ACTIVE':       '#22c55e',
@@ -165,6 +166,28 @@ export default function PaymentsPage() {
   const [filterTwp, setFilterTwp] = useState('');
   const [importResult, setImportResult] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [promoting, setPromoting] = useState(null); // payment id currently being promoted
+  const [promotedSerials, setPromotedSerials] = useState(new Set());
+
+  const { data: existingTargets } = useQuery({
+    queryKey: ['targetSerials'],
+    queryFn: () => fetchTargets({ page_size: 9999 }),
+    staleTime: 30_000,
+    select: (data) => new Set((data.items || []).map((t) => t.serial_nr)),
+  });
+
+  async function handlePromote(p) {
+    setPromoting(p.id);
+    try {
+      await createTarget({ serial_nr: p.serial_nr });
+      setPromotedSerials((prev) => new Set([...prev, p.serial_nr]));
+      qc.invalidateQueries({ queryKey: ['targetSerials'] });
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Could not create target');
+    } finally {
+      setPromoting(null);
+    }
+  }
 
   const { data: summary } = useQuery({
     queryKey: ['paymentsSummary'],
@@ -327,6 +350,7 @@ export default function PaymentsPage() {
                 <tr>
                   <th style={{ ...thStyle, width: '28px' }} title="Has map data"></th>
                   <th style={thStyle}>Serial #</th>
+                  <th style={thStyle}></th>
                   <th style={thStyle}>Claim Name</th>
                   <th style={thStyle}>Claimant</th>
                   <th style={thStyle}>Township/Range</th>
@@ -396,6 +420,43 @@ export default function PaymentsPage() {
                             color: '#fca5a5', fontSize: '12px', fontWeight: 600,
                           }}>Unpaid</span>
                         )}
+                      </td>
+                      <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const isTargeted = promotedSerials.has(p.serial_nr) || existingTargets?.has(p.serial_nr);
+                          if (isTargeted) {
+                            return (
+                              <span
+                                onClick={() => navigate('/targets')}
+                                style={{ color: '#22c55e', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
+                                title="Already a target — click to view targets"
+                              >
+                                ✓ In Targets
+                              </span>
+                            );
+                          }
+                          if (!p.has_map_data) {
+                            return (
+                              <span style={{ color: '#4b6079', fontSize: '11px' }} title="No GIS data — cannot promote to target">
+                                No GIS data
+                              </span>
+                            );
+                          }
+                          return (
+                            <button
+                              onClick={() => handlePromote(p)}
+                              disabled={promoting === p.id}
+                              style={{
+                                background: promoting === p.id ? '#334155' : 'rgba(37,99,235,0.15)',
+                                border: '1px solid rgba(37,99,235,0.4)',
+                                borderRadius: '5px', padding: '3px 8px',
+                                color: '#93c5fd', cursor: 'pointer', fontSize: '11px', fontWeight: 600,
+                              }}
+                            >
+                              {promoting === p.id ? '…' : '→ Target'}
+                            </button>
+                          );
+                        })()}
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'right' }}>
                         <button
