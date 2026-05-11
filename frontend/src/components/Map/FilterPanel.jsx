@@ -89,6 +89,21 @@ export default function FilterPanel({ filters, onChange, onReset }) {
         ))}
       </FilterSection>
 
+      <FilterSection label="Payment 2026">
+        <ButtonGroup
+          options={[
+            { k: 'unpaid', l: 'Unpaid' },
+            { k: 'paid',   l: 'Paid' },
+            { k: '',       l: 'All' },
+          ]}
+          value={filters.payment_status || ''}
+          onChange={(v) => onChange({ ...filters, payment_status: v || undefined })}
+        />
+        <div style={{ fontSize: '10px', color: '#4b6079', marginTop: '4px' }}>
+          Only shows claims in payment tracker
+        </div>
+      </FilterSection>
+
       <div style={{ marginTop: '12px' }}>
         <button onClick={onReset} style={{ ...btnStyle, width: '100%', background: '#0a1628', color: '#94a3b8' }}>
           Reset Filters

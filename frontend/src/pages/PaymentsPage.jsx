@@ -44,15 +44,27 @@ function DispositionBadge({ value }) {
 }
 
 function ImportModal({ onClose, onImported }) {
-  const [text, setText] = useState('');
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState('');
   const [error, setError] = useState('');
   const [importing, setImporting] = useState(false);
 
+  function handleFileChange(e) {
+    const f = e.target.files[0];
+    if (!f) return;
+    setFile(f);
+    setError('');
+    const reader = new FileReader();
+    reader.onload = (ev) => setPreview(ev.target.result.slice(0, 300) + (ev.target.result.length > 300 ? '…' : ''));
+    reader.readAsText(f);
+  }
+
   async function handleImport() {
-    if (!text.trim()) { setError('Paste the report text first.'); return; }
+    if (!file) { setError('Select a file first.'); return; }
     setError('');
     setImporting(true);
     try {
+      const text = await file.text();
       const result = await importPaymentReport(text);
       onImported(result);
       onClose();
@@ -71,36 +83,60 @@ function ImportModal({ onClose, onImported }) {
     }} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div style={{
         background: '#0a1628', border: '1px solid rgba(255,255,255,0.12)',
-        borderRadius: '14px', padding: '24px', width: '680px', maxWidth: '95vw',
-        maxHeight: '90vh', overflowY: 'auto',
+        borderRadius: '14px', padding: '24px', width: '520px', maxWidth: '95vw',
       }}>
         <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
           Import BLM Geographic Index Report
         </h2>
         <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#94a3b8' }}>
-          In the BLM report, select all rows (Ctrl+A or Cmd+A), copy, and paste below.
-          Re-importing updates case disposition and payment dates for existing claims.
+          Export the report from BLM as a tab-separated file (.txt, .tsv, or .csv),
+          then select it below. Re-importing updates case disposition and payment dates.
         </p>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Paste tab-separated report rows here (include the header row)..."
-          style={{
-            width: '100%', minHeight: '240px', background: '#0d1f35',
-            border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px',
-            padding: '10px', color: '#f1f5f9', fontSize: '12px',
-            fontFamily: 'monospace', resize: 'vertical', boxSizing: 'border-box',
-          }}
-        />
-        {error && <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '8px' }}>{error}</div>}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+
+        <label style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: '8px', padding: '28px', borderRadius: '10px', cursor: 'pointer',
+          border: `2px dashed ${file ? 'rgba(37,99,235,0.6)' : 'rgba(255,255,255,0.15)'}`,
+          background: file ? 'rgba(37,99,235,0.08)' : '#0d1f35',
+          transition: 'all 0.15s',
+        }}>
+          <input type="file" accept=".txt,.tsv,.csv" onChange={handleFileChange} style={{ display: 'none' }} />
+          <span style={{ fontSize: '28px' }}>📂</span>
+          {file ? (
+            <>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#93c5fd' }}>{file.name}</span>
+              <span style={{ fontSize: '11px', color: '#4b6079' }}>{(file.size / 1024).toFixed(1)} KB</span>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: '13px', color: '#94a3b8' }}>Click to select file</span>
+              <span style={{ fontSize: '11px', color: '#4b6079' }}>.txt · .tsv · .csv</span>
+            </>
+          )}
+        </label>
+
+        {preview && (
+          <div style={{
+            marginTop: '12px', padding: '8px 10px', background: '#0d1f35',
+            border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px',
+            fontSize: '11px', fontFamily: 'monospace', color: '#64748b',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {preview}
+          </div>
+        )}
+
+        {error && <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '10px' }}>{error}</div>}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
           <button onClick={onClose} style={{
             background: 'none', border: '1px solid rgba(255,255,255,0.12)',
             borderRadius: '6px', padding: '8px 16px', color: '#94a3b8', cursor: 'pointer', fontSize: '13px',
           }}>Cancel</button>
-          <button onClick={handleImport} disabled={importing} style={{
-            background: '#2563eb', border: 'none', borderRadius: '6px',
-            padding: '8px 20px', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
+          <button onClick={handleImport} disabled={importing || !file} style={{
+            background: file ? '#2563eb' : '#1e3a5f', border: 'none', borderRadius: '6px',
+            padding: '8px 20px', color: file ? '#fff' : '#4b6079',
+            cursor: file ? 'pointer' : 'default', fontSize: '13px', fontWeight: 600,
           }}>
             {importing ? 'Importing...' : 'Import'}
           </button>

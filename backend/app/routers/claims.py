@@ -183,6 +183,9 @@ async def list_claims(
     return PaginatedClaims(total=total, page=page, page_size=page_size, items=items)
 
 
+PAYMENT_PAID_EXPR = "(pt.next_pmt_due_dt > (DATE_TRUNC('year', CURRENT_DATE) + INTERVAL '8 months')::date)"
+
+
 @router.get("/geojson")
 async def claims_geojson(
     state: Optional[str] = None,
@@ -193,6 +196,7 @@ async def claims_geojson(
     disposition_cd: Optional[str] = None,
     search: Optional[str] = None,
     bbox: Optional[str] = None,
+    payment_status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     where_clause, params = _build_where(
@@ -200,6 +204,13 @@ async def claims_geojson(
         closed_within_days=closed_within_days, disposition_cd=disposition_cd,
         search=search, bbox=bbox,
     )
+
+    if payment_status in ("paid", "unpaid"):
+        join_clause = "INNER JOIN blm_payment_tracking pt ON pt.serial_nr = c.serial_nr"
+        paid_filter = PAYMENT_PAID_EXPR if payment_status == "paid" else f"NOT {PAYMENT_PAID_EXPR}"
+        where_clause = f"{where_clause} AND {paid_filter}"
+    else:
+        join_clause = ""
 
     sql = text(f"""
         SELECT
@@ -209,6 +220,7 @@ async def claims_geojson(
             c.geom_confidence, c.first_seen_at, c.last_seen_at,
             ST_AsGeoJSON(c.geom) as geojson
         FROM claims c
+        {join_clause}
         WHERE {where_clause}
           AND c.geom IS NOT NULL
         ORDER BY c.last_seen_at DESC

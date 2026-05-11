@@ -89,6 +89,7 @@ export default function ClaimMap({ filters, onFeatureClick }) {
     ...(filters.claim_types?.length ? { claim_type: filters.claim_types.join(',') } : {}),
     ...(filters.county              ? { county: filters.county } : {}),
     ...(filters.closed_within_days  ? { closed_within_days: filters.closed_within_days } : {}),
+    ...(filters.payment_status      ? { payment_status: filters.payment_status } : {}),
   }), [filters]);
 
   const { data: geojson, isLoading } = useQuery({
