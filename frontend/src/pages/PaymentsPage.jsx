@@ -204,7 +204,7 @@ export default function PaymentsPage() {
       await createLease({
         lease_name: p.claim_name || p.serial_nr,
         serial_nr: p.serial_nr,
-        workflow_status: 'prospecting',
+        workflow_status: 'active',
       });
       setPromotedLeaseSerials((prev) => new Set([...prev, p.serial_nr]));
       qc.invalidateQueries({ queryKey: ['leaseSerials'] });
