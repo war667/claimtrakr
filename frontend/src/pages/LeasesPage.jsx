@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { fetchLeases, createLease, updateLease, deleteLease, fetchUpcomingDates } from '../api/leases';
@@ -315,6 +315,12 @@ export default function LeasesPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [filterStatus, setFilterStatus] = useState('active');
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
   const [modal, setModal] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
@@ -450,7 +456,83 @@ export default function LeasesPage() {
               >Add a lease</span>
             </div>
           </div>
+        ) : isMobile ? (
+          /* Mobile card layout */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            {leases.map((lease) => {
+              const days = daysUntil(lease.expiration_dt);
+              const expColor = lease.workflow_status === 'active' ? expirationColor(days) : null;
+              const nd = nextDateByLease[lease.id];
+              return (
+                <div key={lease.id} style={{
+                  padding: '14px 16px',
+                  background: expColor ? `${expColor}08` : '#0f2039',
+                  borderBottom: '1px solid rgba(255,255,255,0.05)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <span
+                      onClick={() => navigate(`/leases/${lease.id}`)}
+                      style={{ fontSize: '14px', fontWeight: 700, color: '#2563eb', cursor: 'pointer', flex: 1, marginRight: '10px' }}
+                    >
+                      {lease.lease_name}
+                    </span>
+                    <StatusBadge status={lease.workflow_status} />
+                  </div>
+
+                  {lease.lessor && (
+                    <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>{lease.lessor}</div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    <div>
+                      <div style={{ fontSize: '10px', color: '#06b6d4', textTransform: 'uppercase', fontWeight: 600, marginBottom: '1px' }}>Expiration</div>
+                      <ExpirationCell dateStr={lease.expiration_dt} status={lease.workflow_status} />
+                    </div>
+                    {nd && (
+                      <div>
+                        <div style={{ fontSize: '10px', color: '#06b6d4', textTransform: 'uppercase', fontWeight: 600, marginBottom: '1px' }}>Next Date</div>
+                        <div style={{ fontSize: '12px' }}>
+                          <span style={{ color: '#94a3b8', marginRight: '4px' }}>{nd.label}</span>
+                          <span style={{ color: nd.days_remaining <= 30 ? '#ef4444' : nd.days_remaining <= 60 ? '#f59e0b' : '#94a3b8' }}>
+                            {nd.critical_date} ({nd.days_remaining}d)
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                    <button
+                      onClick={() => navigate(`/leases/${lease.id}`)}
+                      style={{
+                        flex: 1, background: '#1e3a5f', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '6px', padding: '7px', color: '#93c5fd',
+                        cursor: 'pointer', fontSize: '12px', fontWeight: 600,
+                      }}
+                    >View</button>
+                    <button
+                      onClick={() => setModal(lease)}
+                      style={{
+                        flex: 1, background: 'none', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '6px', padding: '7px', color: '#94a3b8',
+                        cursor: 'pointer', fontSize: '12px',
+                      }}
+                    >Edit</button>
+                    <button
+                      onClick={() => setDeleteConfirm(lease.id)}
+                      style={{
+                        background: 'none', border: '1px solid rgba(239,68,68,0.3)',
+                        borderRadius: '6px', padding: '7px 12px', color: '#ef4444',
+                        cursor: 'pointer', fontSize: '12px',
+                      }}
+                    >Del</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
+          /* Desktop table layout */
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead style={{ background: '#0d1f35' }}>
