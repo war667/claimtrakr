@@ -42,9 +42,11 @@ def _parse_date(s: str) -> Optional[date]:
 
 
 def _parse_rows(text_data: str) -> list[dict]:
-    """Parse tab-separated BLM Geographic Index export into raw row dicts."""
+    """Parse BLM Geographic Index export (auto-detects tab or comma delimiter)."""
     rows = []
-    reader = csv.reader(io.StringIO(text_data.strip()), delimiter="\t")
+    first_line = text_data.strip().splitlines()[0] if text_data.strip() else ""
+    delimiter = "," if first_line.count(",") > first_line.count("\t") else "\t"
+    reader = csv.reader(io.StringIO(text_data.strip()), delimiter=delimiter)
     header_seen = False
 
     for row in reader:
