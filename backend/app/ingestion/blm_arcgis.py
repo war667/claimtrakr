@@ -18,8 +18,8 @@ QUERY_PARAMS_BASE = {
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=10, max=60),
     reraise=True,
 )
 async def _fetch_page(
@@ -130,7 +130,7 @@ async def fetch_all_features(
                 break
 
             offset += 1000
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1.0)
 
     logger.info(f"BLM ArcGIS fetch complete: {len(all_features)} total features from layer {layer_index}")
     return all_features
