@@ -6,6 +6,7 @@ import {
   fetchTownshipRanges, deletePaymentEntry,
 } from '../api/payments';
 import { createTarget, fetchTargets } from '../api/targets';
+import { createLease, fetchLeases } from '../api/leases';
 
 const DISPOSITION_COLORS = {
   'ACTIVE':       '#22c55e',
@@ -166,8 +167,9 @@ export default function PaymentsPage() {
   const [filterTwp, setFilterTwp] = useState('');
   const [importResult, setImportResult] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [promoting, setPromoting] = useState(null); // payment id currently being promoted
-  const [promotedSerials, setPromotedSerials] = useState(new Set());
+  const [promoting, setPromoting] = useState(null); // `${id}-target` or `${id}-lease`
+  const [promotedTargetSerials, setPromotedTargetSerials] = useState(new Set());
+  const [promotedLeaseSerials, setPromotedLeaseSerials] = useState(new Set());
 
   const { data: existingTargets } = useQuery({
     queryKey: ['targetSerials'],
@@ -176,14 +178,38 @@ export default function PaymentsPage() {
     select: (data) => new Set((data.items || []).map((t) => t.serial_nr)),
   });
 
-  async function handlePromote(p) {
-    setPromoting(p.id);
+  const { data: existingLeases } = useQuery({
+    queryKey: ['leaseSerials'],
+    queryFn: fetchLeases,
+    staleTime: 30_000,
+    select: (data) => new Set((data || []).map((l) => l.serial_nr).filter(Boolean)),
+  });
+
+  async function handlePromoteTarget(p) {
+    setPromoting(`${p.id}-target`);
     try {
       await createTarget({ serial_nr: p.serial_nr });
-      setPromotedSerials((prev) => new Set([...prev, p.serial_nr]));
+      setPromotedTargetSerials((prev) => new Set([...prev, p.serial_nr]));
       qc.invalidateQueries({ queryKey: ['targetSerials'] });
     } catch (e) {
       alert(e.response?.data?.detail || 'Could not create target');
+    } finally {
+      setPromoting(null);
+    }
+  }
+
+  async function handlePromoteLease(p) {
+    setPromoting(`${p.id}-lease`);
+    try {
+      await createLease({
+        lease_name: p.claim_name || p.serial_nr,
+        serial_nr: p.serial_nr,
+        workflow_status: 'prospecting',
+      });
+      setPromotedLeaseSerials((prev) => new Set([...prev, p.serial_nr]));
+      qc.invalidateQueries({ queryKey: ['leaseSerials'] });
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Could not create lease');
     } finally {
       setPromoting(null);
     }
@@ -422,41 +448,44 @@ export default function PaymentsPage() {
                         )}
                       </td>
                       <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
-                        {(() => {
-                          const isTargeted = promotedSerials.has(p.serial_nr) || existingTargets?.has(p.serial_nr);
-                          if (isTargeted) {
-                            return (
-                              <span
-                                onClick={() => navigate('/targets')}
+                        {!p.has_map_data ? (
+                          <span style={{ color: '#4b6079', fontSize: '11px' }} title="No GIS data">—</span>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            {promotedTargetSerials.has(p.serial_nr) || existingTargets?.has(p.serial_nr) ? (
+                              <span onClick={() => navigate('/targets')}
                                 style={{ color: '#22c55e', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
-                                title="Already a target — click to view targets"
-                              >
-                                ✓ In Targets
-                              </span>
-                            );
-                          }
-                          if (!p.has_map_data) {
-                            return (
-                              <span style={{ color: '#4b6079', fontSize: '11px' }} title="No GIS data — cannot promote to target">
-                                No GIS data
-                              </span>
-                            );
-                          }
-                          return (
-                            <button
-                              onClick={() => handlePromote(p)}
-                              disabled={promoting === p.id}
-                              style={{
-                                background: promoting === p.id ? '#334155' : 'rgba(37,99,235,0.15)',
-                                border: '1px solid rgba(37,99,235,0.4)',
-                                borderRadius: '5px', padding: '3px 8px',
-                                color: '#93c5fd', cursor: 'pointer', fontSize: '11px', fontWeight: 600,
-                              }}
-                            >
-                              {promoting === p.id ? '…' : '→ Target'}
-                            </button>
-                          );
-                        })()}
+                                title="Already a target">✓ Target</span>
+                            ) : (
+                              <button onClick={() => handlePromoteTarget(p)}
+                                disabled={promoting === `${p.id}-target`}
+                                title="Add to Targets workflow"
+                                style={{
+                                  background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.4)',
+                                  borderRadius: '5px', padding: '3px 7px',
+                                  color: '#93c5fd', cursor: 'pointer', fontSize: '11px', fontWeight: 600,
+                                }}>
+                                {promoting === `${p.id}-target` ? '…' : '→ Target'}
+                              </button>
+                            )}
+                            {promotedLeaseSerials.has(p.serial_nr) || existingLeases?.has(p.serial_nr) ? (
+                              <span onClick={() => navigate('/leases')}
+                                style={{ color: '#22c55e', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
+                                title="Already a lease">✓ Lease</span>
+                            ) : (
+                              <button onClick={() => handlePromoteLease(p)}
+                                disabled={promoting === `${p.id}-lease`}
+                                title="Add to Leases"
+                                style={{
+                                  background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)',
+                                  borderRadius: '5px', padding: '3px 7px',
+                                  color: '#6ee7b7', cursor: 'pointer', fontSize: '11px', fontWeight: 600,
+                                }}>
+                                {promoting === `${p.id}-lease` ? '…' : '→ Lease'}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'right' }}>
                         <button
