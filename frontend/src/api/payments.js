@@ -12,8 +12,8 @@ export const fetchPaymentsSummary = () =>
 export const fetchTownshipRanges = () =>
   client.get('/api/v1/payments/township-ranges').then((r) => r.data);
 
-export const updatePaidStatus = (id, body) =>
-  client.put(`/api/v1/payments/${id}/paid`, body).then((r) => r.data);
+export const updateNotes = (id, notes) =>
+  client.put(`/api/v1/payments/${id}/notes`, { notes }).then((r) => r.data);
 
 export const deletePaymentEntry = (id) =>
   client.delete(`/api/v1/payments/${id}`);

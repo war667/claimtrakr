@@ -133,8 +133,7 @@ class ImportBody(BaseModel):
     text: str
 
 
-class PaidUpdateBody(BaseModel):
-    is_paid: bool
+class NotesUpdateBody(BaseModel):
     notes: Optional[str] = None
 
 
@@ -161,19 +160,23 @@ def _row_to_dict(r) -> dict:
         "county": r[14],
         "claim_type": r[15],
         "sections": r[16],
-        "is_paid": r[17],
-        "paid_at": r[18].isoformat() if r[18] else None,
-        "paid_by": r[19],
-        "notes": r[20],
-        "imported_at": r[21].isoformat() if r[21] else None,
+        "is_paid": r[17],   # derived: next_pmt_due_dt > current Sept 1
+        "notes": r[18],
+        "imported_at": r[19].isoformat() if r[19] else None,
     }
 
 
-SELECT_COLS = """
+# is_paid is derived: true when next payment is due AFTER the current assessment year's Sept 1
+DERIVED_PAID = """
+    next_pmt_due_dt > (DATE_TRUNC('year', CURRENT_DATE) + INTERVAL '8 months')::date
+"""
+
+SELECT_COLS = f"""
     id, serial_nr, legacy_lead_file_nr, claim_name, claimant, customer_id,
     location_dt, closed_dt, next_pmt_due_dt, case_disposition, lead_file_nr,
     meridian_twp_rng, admin_state, field_office, county, claim_type, sections,
-    is_paid, paid_at, paid_by, notes, imported_at
+    ({DERIVED_PAID}) AS is_paid,
+    notes, imported_at
 """
 
 
@@ -242,9 +245,9 @@ async def list_payments(
     params: dict = {}
 
     if is_paid == "true":
-        conditions.append("is_paid = TRUE")
+        conditions.append(f"({DERIVED_PAID})")
     elif is_paid == "false":
-        conditions.append("is_paid = FALSE")
+        conditions.append(f"NOT ({DERIVED_PAID})")
 
     if admin_state:
         conditions.append("admin_state = :admin_state")
@@ -277,12 +280,12 @@ async def list_payments(
 
 @router.get("/summary")
 async def payments_summary(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(text("""
+    result = await db.execute(text(f"""
         SELECT
             COUNT(*) AS total,
-            COUNT(*) FILTER (WHERE is_paid = FALSE) AS unpaid,
-            COUNT(*) FILTER (WHERE is_paid = FALSE AND next_pmt_due_dt <= CURRENT_DATE + 30) AS due_30,
-            COUNT(*) FILTER (WHERE is_paid = FALSE AND next_pmt_due_dt <= CURRENT_DATE + 90) AS due_90,
+            COUNT(*) FILTER (WHERE NOT ({DERIVED_PAID})) AS unpaid,
+            COUNT(*) FILTER (WHERE NOT ({DERIVED_PAID}) AND next_pmt_due_dt <= CURRENT_DATE + 30) AS due_30,
+            COUNT(*) FILTER (WHERE NOT ({DERIVED_PAID}) AND next_pmt_due_dt <= CURRENT_DATE + 90) AS due_90,
             COUNT(DISTINCT meridian_twp_rng) AS township_ranges
         FROM blm_payment_tracking
     """))
@@ -305,36 +308,19 @@ async def list_township_ranges(db: AsyncSession = Depends(get_db)):
     return [{"meridian_twp_rng": r[0], "admin_state": r[1], "county": r[2]} for r in result.fetchall()]
 
 
-@router.put("/{entry_id}/paid")
-async def update_paid_status(
+@router.put("/{entry_id}/notes")
+async def update_notes(
     entry_id: int,
-    body: PaidUpdateBody,
-    username: str = Depends(verify_credentials),
+    body: NotesUpdateBody,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(text(f"SELECT {SELECT_COLS} FROM blm_payment_tracking WHERE id = :id"), {"id": entry_id})
-    row = result.fetchone()
-    if not row:
+    result = await db.execute(text("SELECT id FROM blm_payment_tracking WHERE id = :id"), {"id": entry_id})
+    if not result.fetchone():
         raise HTTPException(status_code=404, detail="Entry not found")
-
-    await db.execute(text("""
-        UPDATE blm_payment_tracking
-        SET is_paid = :is_paid,
-            paid_at = CASE WHEN :is_paid THEN NOW() ELSE NULL END,
-            paid_by = CASE WHEN :is_paid THEN :username ELSE NULL END,
-            notes   = COALESCE(:notes, notes)
-        WHERE id = :id
-    """), {"is_paid": body.is_paid, "username": username, "notes": body.notes, "id": entry_id})
+    await db.execute(text("UPDATE blm_payment_tracking SET notes = :notes WHERE id = :id"),
+                     {"notes": body.notes, "id": entry_id})
     await db.commit()
-
-    result = await db.execute(text(f"""
-        SELECT {SELECT_COLS}, (next_pmt_due_dt - CURRENT_DATE) AS days_remaining
-        FROM blm_payment_tracking WHERE id = :id
-    """), {"id": entry_id})
-    r = result.fetchone()
-    d = _row_to_dict(r)
-    d["days_remaining"] = r[22]
-    return d
+    return {"ok": True}
 
 
 @router.delete("/{entry_id}", status_code=204)

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   importPaymentReport, fetchPayments, fetchPaymentsSummary,
-  fetchTownshipRanges, updatePaidStatus, deletePaymentEntry,
+  fetchTownshipRanges, deletePaymentEntry,
 } from '../api/payments';
 
 const DISPOSITION_COLORS = {
@@ -146,14 +146,6 @@ export default function PaymentsPage() {
     staleTime: 15_000,
   });
 
-  const paidMutation = useMutation({
-    mutationFn: ({ id, is_paid }) => updatePaidStatus(id, { is_paid }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['payments'] });
-      qc.invalidateQueries({ queryKey: ['paymentsSummary'] });
-    },
-  });
-
   const deleteMutation = useMutation({
     mutationFn: deletePaymentEntry,
     onSuccess: () => {
@@ -170,6 +162,8 @@ export default function PaymentsPage() {
     qc.invalidateQueries({ queryKey: ['paymentsSummary'] });
     qc.invalidateQueries({ queryKey: ['townshipRanges'] });
   }
+
+  const currentSept1 = new Date(new Date().getFullYear(), 8, 1); // Sept 1 of current year
 
   const thStyle = {
     padding: '8px 12px', textAlign: 'left', fontSize: '11px',
@@ -291,7 +285,7 @@ export default function PaymentsPage() {
                   <th style={thStyle}>Disposition</th>
                   <th style={thStyle}>Located</th>
                   <th style={thStyle}>Next Pmt Due</th>
-                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Paid?</th>
                   <th style={thStyle}></th>
                 </tr>
               </thead>
@@ -336,19 +330,19 @@ export default function PaymentsPage() {
                         ) : '—'}
                       </td>
                       <td style={tdStyle}>
-                        <button
-                          onClick={() => paidMutation.mutate({ id: p.id, is_paid: !p.is_paid })}
-                          style={{
-                            background: p.is_paid ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)',
-                            border: `1px solid ${p.is_paid ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.12)'}`,
-                            borderRadius: '6px', padding: '4px 12px',
-                            color: p.is_paid ? '#22c55e' : '#94a3b8',
-                            cursor: 'pointer', fontSize: '12px', fontWeight: p.is_paid ? 600 : 400,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {p.is_paid ? '✓ Paid' : 'Mark Paid'}
-                        </button>
+                        {p.is_paid ? (
+                          <span style={{
+                            background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)',
+                            borderRadius: '6px', padding: '3px 10px',
+                            color: '#22c55e', fontSize: '12px', fontWeight: 600,
+                          }}>Paid</span>
+                        ) : (
+                          <span style={{
+                            background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)',
+                            borderRadius: '6px', padding: '3px 10px',
+                            color: '#fca5a5', fontSize: '12px', fontWeight: 600,
+                          }}>Unpaid</span>
+                        )}
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'right' }}>
                         <button
