@@ -10,6 +10,7 @@ from app.routers.admin import router as admin_router, me_router
 from app.routers.leases import router as leases_router
 from app.routers.analytics import router as analytics_router
 from app.routers.payments import router as payments_router
+from app.routers.ai_chat import router as ai_router
 
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO))
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
 app.include_router(leases_router, prefix="/api/v1/leases", tags=["leases"])
 app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["analytics"])
 app.include_router(payments_router, prefix="/api/v1/payments", tags=["payments"])
+app.include_router(ai_router, prefix="/api/v1/ai", tags=["ai"])
 
 
 @app.get("/health")

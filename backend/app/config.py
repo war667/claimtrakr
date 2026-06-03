@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     BLM_CLAIMS_ACTIVE_LAYER: int = 0
     BLM_CLAIMS_CLOSED_LAYER: int = 1
     POSTGRES_USER: str = "ct"
+    ANTHROPIC_API_KEY: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

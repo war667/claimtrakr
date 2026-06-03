@@ -15,6 +15,7 @@ import LeasesPage from './pages/LeasesPage';
 import LeaseDetailPage from './pages/LeaseDetailPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import PaymentsPage from './pages/PaymentsPage';
+import AiPage from './pages/AiPage';
 
 function RequireAuth({ children }) {
   const { auth } = useAuth();
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="admin" element={<AdminPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="payments" element={<PaymentsPage />} />
+          <Route path="ai" element={<AiPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
