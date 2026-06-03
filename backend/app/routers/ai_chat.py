@@ -181,7 +181,7 @@ async def ai_chat(
     async def generate():
         try:
             async with client.messages.stream(
-                model="claude-opus-4-7",
+                model="claude-sonnet-4-6",
                 max_tokens=body.max_tokens,
                 system=_SYSTEM_CONTEXT,
                 messages=messages,
