@@ -280,7 +280,7 @@ function SummaryModal({ docket, onClose, onAsk }) {
             background: 'none', border: '1px solid rgba(255,255,255,0.15)',
             borderRadius: '6px', padding: '7px 16px', color: '#e2e8f0',
             cursor: 'pointer', fontSize: '13px',
-          }}>View Raw PDF ↗</button>
+          }}>View Pages ↗</button>
           <button onClick={onAsk} style={{
             background: '#2563eb', border: 'none', borderRadius: '6px',
             padding: '7px 16px', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
@@ -339,7 +339,7 @@ function DocketRow({ doc, onFetch, onShowSummary, onAsk, onDelete, fetching }) {
               background: 'none', border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: '5px', padding: '4px 10px', color: '#94a3b8',
               cursor: 'pointer', fontSize: '11px',
-            }}>PDF ↗</button>
+            }}>Pages ↗</button>
             <button onClick={() => onAsk(doc)} style={{
               background: '#2563eb', border: 'none',
               borderRadius: '5px', padding: '4px 10px', color: '#fff',

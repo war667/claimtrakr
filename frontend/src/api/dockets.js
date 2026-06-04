@@ -48,7 +48,7 @@ export function deleteDocket(docketNr) {
 }
 
 export async function openDocketPdf(docketNr) {
-  const resp = await fetch(`${BASE_URL}/api/v1/dockets/${encodeURIComponent(docketNr)}/pdf`, {
+  const resp = await fetch(`${BASE_URL}/api/v1/dockets/${encodeURIComponent(docketNr)}/rendered-pdf`, {
     headers: authHeader(),
   });
   if (!resp.ok) throw new Error(`PDF load failed: ${resp.status}`);

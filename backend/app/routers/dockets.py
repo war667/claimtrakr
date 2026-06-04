@@ -17,7 +17,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -207,6 +207,63 @@ def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], str]:
     return blocks, note
 
 
+def _render_docket_pdf(pdf_path: str, max_pages: int = 20) -> bytes:
+    """Render Portfolio embedded files (or plain pages) into a browser-viewable PDF."""
+    import fitz
+
+    doc = fitz.open(pdf_path)
+    n_embedded = doc.embfile_count()
+    out = fitz.open()
+    page_count = 0
+
+    if n_embedded > 0:
+        for i in range(n_embedded):
+            if page_count >= max_pages:
+                break
+            content = doc.embfile_get(i)
+            fmt = _detect_fmt(content)
+
+            if fmt == "pdf":
+                try:
+                    subdoc = fitz.open(stream=content, filetype="pdf")
+                    for pnum in range(subdoc.page_count):
+                        if page_count >= max_pages:
+                            break
+                        pix = subdoc.load_page(pnum).get_pixmap(
+                            matrix=fitz.Matrix(150 / 72, 150 / 72), colorspace=fitz.csRGB
+                        )
+                        new_page = out.new_page(width=pix.width, height=pix.height)
+                        new_page.insert_image(new_page.rect, pixmap=pix)
+                        page_count += 1
+                    subdoc.close()
+                except Exception as exc:
+                    logger.warning(f"Render embedded PDF error: {exc}")
+            elif fmt in ("jpeg", "png", "tiff"):
+                try:
+                    pix = fitz.Pixmap(content)
+                    if pix.colorspace and pix.colorspace.n > 3:
+                        pix = fitz.Pixmap(fitz.csRGB, pix)
+                    new_page = out.new_page(width=pix.width, height=pix.height)
+                    new_page.insert_image(new_page.rect, pixmap=pix)
+                    page_count += 1
+                except Exception as exc:
+                    logger.warning(f"Render embedded image error: {exc}")
+
+    if page_count == 0:
+        for pnum in range(min(max_pages, doc.page_count)):
+            pix = doc.load_page(pnum).get_pixmap(
+                matrix=fitz.Matrix(150 / 72, 150 / 72), colorspace=fitz.csRGB
+            )
+            new_page = out.new_page(width=pix.width, height=pix.height)
+            new_page.insert_image(new_page.rect, pixmap=pix)
+            page_count += 1
+
+    doc.close()
+    pdf_bytes = out.tobytes(deflate=True)
+    out.close()
+    return pdf_bytes
+
+
 def _row_to_dict(r) -> dict:
     return {
         "id": r[0], "docket_nr": r[1], "agency": r[2], "state": r[3],
@@ -282,6 +339,34 @@ async def get_docket_pdf(docket_nr: str, db: AsyncSession = Depends(get_db)):
         media_type="application/pdf",
         filename=f"docket_{docket_nr}.pdf",
         headers={"Content-Disposition": f"inline; filename=docket_{docket_nr}.pdf"},
+    )
+
+
+@router.get("/{docket_nr}/rendered-pdf")
+async def get_rendered_pdf(docket_nr: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        text("SELECT pdf_path FROM usgs_dockets WHERE docket_nr = :nr"),
+        {"nr": docket_nr},
+    )
+    row = result.fetchone()
+    if not row or not row[0]:
+        raise HTTPException(status_code=404, detail="PDF not downloaded yet")
+    path = Path(row[0])
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="PDF file not found on disk")
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+    try:
+        pdf_bytes = await loop.run_in_executor(None, _render_docket_pdf, str(path))
+    except Exception as exc:
+        logger.error(f"Render error for {docket_nr}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Render failed: {exc}")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=docket_{docket_nr}_pages.pdf"},
     )
 
 
