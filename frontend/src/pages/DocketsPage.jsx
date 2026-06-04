@@ -546,6 +546,15 @@ export default function DocketsPage() {
         </div>
         <div style={{ fontSize: '11px', color: '#a16207', marginTop: '6px' }}>
           Downloads the PDF from USGS, analyzes it with Claude, then lets you ask questions about it.
+          {' '}
+          <a
+            href="https://pubs.usgs.gov/ds/1004/"
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: '#eab308', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+          >
+            Browse USGS DS-1004 ↗
+          </a>
         </div>
       </div>
 
