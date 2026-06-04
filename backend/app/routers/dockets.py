@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
@@ -69,6 +70,28 @@ def _find_record(docket_nr: str) -> Optional[dict]:
         if r["docket"] == docket_nr:
             return r
     return None
+
+
+def _unwrap_pdf_package(pdf_bytes: bytes) -> tuple[bytes, bool]:
+    """
+    If pdf_bytes is an Adobe PDF Package/Portfolio, extract the largest embedded file.
+    Returns (content_bytes, was_unwrapped).
+    """
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(BytesIO(pdf_bytes))
+        attachments = reader.attachments  # dict[str, list[bytes]]
+        if not attachments:
+            return pdf_bytes, False
+        candidates = [f for files in attachments.values() for f in files if f]
+        if not candidates:
+            return pdf_bytes, False
+        largest = max(candidates, key=len)
+        if len(largest) > 1024:
+            return largest, True
+    except Exception as exc:
+        logger.warning(f"PDF package extraction failed: {exc}")
+    return pdf_bytes, False
 
 
 def _row_to_dict(r) -> dict:
@@ -193,11 +216,15 @@ async def fetch_docket(
     )
     await db.commit()
 
+    # Unwrap PDF Package/Portfolio if needed
+    process_bytes, was_unwrapped = _unwrap_pdf_package(pdf_bytes)
+    if was_unwrapped:
+        logger.info(f"Docket {docket_nr}: extracted embedded PDF from package ({len(process_bytes)} bytes)")
+
     # Truncate if over limit
-    process_bytes = pdf_bytes
     truncated = False
-    if len(pdf_bytes) > MAX_PDF_BYTES:
-        process_bytes = pdf_bytes[:MAX_PDF_BYTES]
+    if len(process_bytes) > MAX_PDF_BYTES:
+        process_bytes = process_bytes[:MAX_PDF_BYTES]
         truncated = True
 
     # Send to Claude
