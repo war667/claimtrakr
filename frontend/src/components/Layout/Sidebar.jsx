@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/leases',    icon: '📄', label: 'Leases' },
   { to: '/payments',  icon: '💰', label: 'Payments' },
   { to: '/ai',        icon: '🤖', label: 'AI Research' },
+  { to: '/dockets',   icon: '📁', label: 'Dockets' },
   { to: '/report',    icon: '📊', label: 'Report' },
   { to: '/ingestion', icon: '⬇️', label: 'Ingestion' },
   { to: '/admin',     icon: '⚙️', label: 'Admin' },
