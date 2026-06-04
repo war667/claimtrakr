@@ -497,12 +497,12 @@ export default function DocketsPage() {
 
       {/* Fetch a new docket */}
       <div style={{
-        padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)',
-        background: 'rgba(234,179,8,0.04)',
-        borderLeft: '3px solid rgba(234,179,8,0.6)',
+        padding: '14px 24px', borderBottom: '1px solid rgba(234,179,8,0.25)',
+        background: 'rgba(234,179,8,0.1)',
+        borderLeft: '4px solid #eab308',
         flexShrink: 0,
       }}>
-        <div style={{ fontSize: '11px', fontWeight: 600, color: '#4b6079', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '8px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 700, color: '#fde047', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '8px' }}>
           Fetch a docket
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -534,7 +534,7 @@ export default function DocketsPage() {
             </div>
           )}
         </div>
-        <div style={{ fontSize: '11px', color: '#2d3f55', marginTop: '6px' }}>
+        <div style={{ fontSize: '11px', color: '#a16207', marginTop: '6px' }}>
           Downloads the PDF from USGS, analyzes it with Claude, then lets you ask questions about it.
         </div>
       </div>
