@@ -39,8 +39,9 @@ export function getDocket(docketNr) {
   return apiFetch(`/api/v1/dockets/${encodeURIComponent(docketNr)}`);
 }
 
-export function fetchDocket(docketNr) {
-  return apiFetch(`/api/v1/dockets/${encodeURIComponent(docketNr)}/fetch`, { method: 'POST' });
+export function fetchDocket(docketNr, { full = false } = {}) {
+  const qs = full ? '?full=true' : '';
+  return apiFetch(`/api/v1/dockets/${encodeURIComponent(docketNr)}/fetch${qs}`, { method: 'POST' });
 }
 
 export function deleteDocket(docketNr) {

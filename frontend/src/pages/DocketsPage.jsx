@@ -232,7 +232,8 @@ function AskPanel({ docket, onClose }) {
 // Summary modal
 // ---------------------------------------------------------------------------
 
-function SummaryModal({ docket, onClose, onAsk }) {
+function SummaryModal({ docket, onClose, onAsk, onFetchFull }) {
+  const isTruncated = docket.pages_total > 0 && docket.pages_analyzed < docket.pages_total;
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
@@ -255,6 +256,13 @@ function SummaryModal({ docket, onClose, onAsk }) {
             <div style={{ fontSize: '11px', color: '#4b6079', marginTop: '2px' }}>
               {docket.agency} · {docket.county}, {docket.state} · {docket.commodity} · {docket.land_hint}
               {docket.file_size_bytes ? ` · ${(docket.file_size_bytes / 1024 / 1024).toFixed(1)} MB` : ''}
+              {isTruncated && (
+                <span style={{
+                  marginLeft: '8px', padding: '1px 7px', borderRadius: '999px', fontSize: '10px',
+                  background: 'rgba(234,179,8,0.12)', border: '1px solid rgba(234,179,8,0.35)',
+                  color: '#fde047', fontWeight: 600,
+                }}>⚠ {docket.pages_analyzed} of {docket.pages_total} pages analyzed</span>
+              )}
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#4b6079', cursor: 'pointer', fontSize: '18px', padding: '2px 6px' }}>✕</button>
@@ -281,6 +289,13 @@ function SummaryModal({ docket, onClose, onAsk }) {
             borderRadius: '6px', padding: '7px 16px', color: '#e2e8f0',
             cursor: 'pointer', fontSize: '13px',
           }}>View Pages ↗</button>
+          {isTruncated && (
+            <button onClick={() => { onClose(); onFetchFull(docket); }} style={{
+              background: 'rgba(234,179,8,0.12)', border: '1px solid rgba(234,179,8,0.4)',
+              borderRadius: '6px', padding: '7px 16px', color: '#fde047',
+              cursor: 'pointer', fontSize: '13px', fontWeight: 600,
+            }}>Analyze All {docket.pages_total} Pages →</button>
+          )}
           <button onClick={onAsk} style={{
             background: '#2563eb', border: 'none', borderRadius: '6px',
             padding: '7px 16px', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
@@ -295,9 +310,10 @@ function SummaryModal({ docket, onClose, onAsk }) {
 // Docket row
 // ---------------------------------------------------------------------------
 
-function DocketRow({ doc, onFetch, onShowSummary, onAsk, onDelete, fetching }) {
+function DocketRow({ doc, onFetch, onFetchFull, onShowSummary, onAsk, onDelete, fetching }) {
   const isReady = doc.db_status === 'ready';
   const isBusy = fetching === doc.docket || doc.db_status === 'downloading' || doc.db_status === 'processing';
+  const isTruncated = isReady && doc.pages_total > 0 && doc.pages_analyzed < doc.pages_total;
 
   return (
     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
@@ -329,7 +345,14 @@ function DocketRow({ doc, onFetch, onShowSummary, onAsk, onDelete, fetching }) {
       </td>
       <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
         {isReady ? (
-          <span style={{ display: 'inline-flex', gap: '6px' }}>
+          <span style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+            {isTruncated && (
+              <span title={`Only ${doc.pages_analyzed} of ${doc.pages_total} pages analyzed`} style={{
+                fontSize: '10px', padding: '2px 6px', borderRadius: '999px', fontWeight: 600,
+                background: 'rgba(234,179,8,0.12)', border: '1px solid rgba(234,179,8,0.35)',
+                color: '#fde047', whiteSpace: 'nowrap', cursor: 'default',
+              }}>⚠ {doc.pages_analyzed}/{doc.pages_total} pg</span>
+            )}
             <button onClick={() => onShowSummary(doc)} style={{
               background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.3)',
               borderRadius: '5px', padding: '4px 10px', color: '#93c5fd',
@@ -450,11 +473,21 @@ export default function DocketsPage() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  async function handleFetch(docNr) {
+  async function handleFetch(docNr, { full = false } = {}) {
+    if (full) {
+      const rec = dbRecords[docNr];
+      const totalPages = rec?.pages_total ?? '?';
+      const ok = window.confirm(
+        `Analyze all ${totalPages} pages of docket ${docNr}?\n\n` +
+        `This will take several minutes and cost more API tokens. ` +
+        `The page will update automatically when complete.`
+      );
+      if (!ok) return;
+    }
     setFetching(docNr);
     setFetchError('');
     try {
-      const result = await fetchDocket(docNr);
+      const result = await fetchDocket(docNr, { full });
       setDbRecords((prev) => ({ ...prev, [result.docket_nr]: result }));
     } catch (e) {
       setFetchError(e.message);
@@ -649,6 +682,7 @@ export default function DocketsPage() {
                     doc={displayDoc}
                     fetching={fetching}
                     onFetch={(d) => handleFetch(d.docket)}
+                    onFetchFull={(d) => handleFetch(d.docket, { full: true })}
                     onShowSummary={(d) => setSummaryDoc(r)}
                     onAsk={(d) => setAskDoc(r)}
                     onDelete={(d) => handleDelete(d)}
@@ -679,6 +713,7 @@ export default function DocketsPage() {
           docket={summaryDoc}
           onClose={() => setSummaryDoc(null)}
           onAsk={() => { setAskDoc(summaryDoc); setSummaryDoc(null); }}
+          onFetchFull={(d) => { setSummaryDoc(null); handleFetch(d.docket_nr, { full: true }); }}
         />
       )}
       {askDoc && (

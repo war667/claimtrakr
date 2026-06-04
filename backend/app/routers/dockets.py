@@ -80,8 +80,9 @@ def _find_record(docket_nr: str) -> Optional[dict]:
     return None
 
 
-MAX_PAGES = 120           # absolute ceiling to avoid runaway memory
-MAX_BLOCKS_PER_CHUNK = 8  # images per Claude API call (keeps payloads ~2 MB base64)
+MAX_PAGES_DEFAULT = 50    # cap for normal fetch (user can request full analysis)
+MAX_PAGES_FULL = 120      # absolute ceiling even for full analysis
+MAX_BLOCKS_PER_CHUNK = 8  # images per Claude API call
 
 def _detect_fmt(data: bytes) -> str:
     if data[:4] == b'%PDF':
@@ -102,13 +103,13 @@ def _image_block(data: bytes, fmt: str) -> dict | None:
         img = Image.open(BytesIO(data))
         logger.info(f"Image: mode={img.mode} size={img.size} fmt={fmt}")
         w, h = img.size
-        if max(w, h) > 1200:
-            ratio = 1200 / max(w, h)
+        if max(w, h) > 1100:
+            ratio = 1100 / max(w, h)
             img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
         if img.mode not in ('RGB',):
             img = img.convert('RGB')
         buf = BytesIO()
-        img.save(buf, format='JPEG', quality=75, optimize=True)
+        img.save(buf, format='JPEG', quality=65, optimize=True)
         jpeg_bytes = buf.getvalue()
         logger.info(f"Compressed to {len(jpeg_bytes)} bytes JPEG")
     except Exception as exc:
@@ -124,11 +125,11 @@ def _image_block(data: bytes, fmt: str) -> dict | None:
     }
 
 
-def _render_page_jpeg(page, dpi: int = 150) -> bytes:
+def _render_page_jpeg(page, dpi: int = 120) -> bytes:
     import fitz
     mat = fitz.Matrix(dpi / 72, dpi / 72)
     pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
-    return pix.tobytes("jpeg")
+    return pix.tobytes("jpeg", jpg_quality=65)
 
 
 def _jpeg_block(jpeg_bytes: bytes) -> dict:
@@ -142,10 +143,11 @@ def _jpeg_block(jpeg_bytes: bytes) -> dict:
     }
 
 
-def _build_content_blocks(pdf_bytes: bytes) -> list[dict]:
+def _build_content_blocks(pdf_bytes: bytes, max_pages: int = MAX_PAGES_FULL) -> tuple[list[dict], int]:
     """
     Build Claude image blocks from a PDF or PDF Portfolio.
-    Returns ALL renderable pages (up to MAX_PAGES); the caller chunks them.
+    Returns (blocks[:max_pages], total_pages_in_source).
+    total_pages_in_source may be capped at MAX_PAGES_FULL for very large docs.
 
     Strategy A: PDF Portfolio — extract each embedded file with PyMuPDF and
                 render its pages to JPEG (handles TIFFs, JPEGs, sub-PDFs).
@@ -157,11 +159,11 @@ def _build_content_blocks(pdf_bytes: bytes) -> list[dict]:
     n_embedded = doc.embfile_count()
     logger.info(f"PyMuPDF: {doc.page_count} pages, {n_embedded} embedded files")
 
-    blocks: list[dict] = []
+    all_blocks: list[dict] = []
 
     if n_embedded > 0:
         for i in range(n_embedded):
-            if len(blocks) >= MAX_PAGES:
+            if len(all_blocks) >= MAX_PAGES_FULL:
                 break
             info = doc.embfile_info(i)
             content = doc.embfile_get(i)
@@ -172,27 +174,28 @@ def _build_content_blocks(pdf_bytes: bytes) -> list[dict]:
                 try:
                     subdoc = fitz.open(stream=content, filetype="pdf")
                     for pnum in range(subdoc.page_count):
-                        if len(blocks) >= MAX_PAGES:
+                        if len(all_blocks) >= MAX_PAGES_FULL:
                             break
-                        blocks.append(_jpeg_block(_render_page_jpeg(subdoc.load_page(pnum))))
+                        all_blocks.append(_jpeg_block(_render_page_jpeg(subdoc.load_page(pnum))))
                     subdoc.close()
                 except Exception as exc:
                     logger.warning(f"  Failed to render embedded PDF: {exc}")
             else:
                 blk = _image_block(content, fmt)
                 if blk:
-                    blocks.append(blk)
+                    all_blocks.append(blk)
 
-        logger.info(f"Portfolio extraction: {len(blocks)} blocks")
+        logger.info(f"Portfolio extraction: {len(all_blocks)} blocks")
 
-    if not blocks:
+    if not all_blocks:
         logger.info(f"Rendering {doc.page_count} pages of plain PDF")
-        for pnum in range(min(MAX_PAGES, doc.page_count)):
-            blocks.append(_jpeg_block(_render_page_jpeg(doc.load_page(pnum))))
+        for pnum in range(min(MAX_PAGES_FULL, doc.page_count)):
+            all_blocks.append(_jpeg_block(_render_page_jpeg(doc.load_page(pnum))))
 
     doc.close()
-    logger.info(f"Total: {len(blocks)} image blocks")
-    return blocks
+    total = len(all_blocks)
+    logger.info(f"Total: {total} pages available, returning up to {max_pages}")
+    return all_blocks[:max_pages], total
 
 
 def _render_docket_pdf(pdf_path: str, max_pages: int = 20) -> bytes:
@@ -262,13 +265,15 @@ def _row_to_dict(r) -> dict:
         "fetched_at": r[15].isoformat() if r[15] else None,
         "processed_at": r[16].isoformat() if r[16] else None,
         "created_at": r[17].isoformat() if r[17] else None,
+        "pages_total": r[18], "pages_analyzed": r[19],
     }
 
 
 SELECT_COLS = """
     id, docket_nr, agency, state, county, property_name, commodity,
     pdf_url, pdf_path, file_size_bytes, summary, extracted_text, land_hint,
-    status, error_msg, fetched_at, processed_at, created_at
+    status, error_msg, fetched_at, processed_at, created_at,
+    pages_total, pages_analyzed
 """
 
 
@@ -373,6 +378,7 @@ async def delete_docket(docket_nr: str, db: AsyncSession = Depends(get_db)):
 @router.post("/{docket_nr}/fetch")
 async def fetch_docket(
     docket_nr: str,
+    full: bool = False,
     username: str = Depends(verify_credentials),
     db: AsyncSession = Depends(get_db),
 ):
@@ -390,7 +396,7 @@ async def fetch_docket(
         text("SELECT status FROM usgs_dockets WHERE docket_nr = :nr"), {"nr": docket_nr}
     )
     row = existing.fetchone()
-    if row and row[0] == "ready":
+    if row and row[0] == "ready" and not full:
         raise HTTPException(status_code=409, detail="Docket already processed. Use /ask to query it.")
 
     # Upsert with status=downloading
@@ -435,8 +441,9 @@ async def fetch_docket(
     await db.commit()
 
     # Build content blocks — handles both PDF Packages and plain large PDFs
+    max_pages = MAX_PAGES_FULL if full else MAX_PAGES_DEFAULT
     try:
-        content_blocks = _build_content_blocks(pdf_bytes)
+        content_blocks, pages_total = _build_content_blocks(pdf_bytes, max_pages)
     except Exception as exc:
         await db.execute(
             text("UPDATE usgs_dockets SET status='error', error_msg=:e WHERE docket_nr=:nr"),
@@ -446,7 +453,8 @@ async def fetch_docket(
         raise HTTPException(status_code=500, detail=f"PDF extraction failed: {exc}")
 
     n_pages = len(content_blocks)
-    logger.info(f"Sending {n_pages} pages to Claude (chunked={n_pages > MAX_BLOCKS_PER_CHUNK})")
+    truncated = pages_total > n_pages
+    logger.info(f"Sending {n_pages}/{pages_total} pages to Claude (chunked={n_pages > MAX_BLOCKS_PER_CHUNK}, truncated={truncated})")
 
     # Send to Claude — single call for small dockets, chunked+synthesized for large ones
     try:
@@ -489,6 +497,12 @@ async def fetch_docket(
             )
             summary = synth.content[0].text
 
+        if truncated:
+            summary += (
+                f"\n\n---\n⚠ **Partial analysis** — {n_pages} of {pages_total} pages were analyzed. "
+                f"Use \"Analyze All Pages\" to process the full docket."
+            )
+
         extracted_text = summary
 
     except Exception as exc:
@@ -502,9 +516,11 @@ async def fetch_docket(
     # Store results
     await db.execute(text("""
         UPDATE usgs_dockets
-        SET status='ready', summary=:summary, extracted_text=:text, processed_at=NOW()
+        SET status='ready', summary=:summary, extracted_text=:text,
+            pages_total=:ptotal, pages_analyzed=:panalyzed, processed_at=NOW()
         WHERE docket_nr=:nr
-    """), {"summary": summary, "text": extracted_text, "nr": docket_nr})
+    """), {"summary": summary, "text": extracted_text,
+           "ptotal": pages_total, "panalyzed": n_pages, "nr": docket_nr})
     await db.commit()
 
     result = await db.execute(
