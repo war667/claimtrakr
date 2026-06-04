@@ -72,26 +72,85 @@ def _find_record(docket_nr: str) -> Optional[dict]:
     return None
 
 
-def _unwrap_pdf_package(pdf_bytes: bytes) -> tuple[bytes, bool]:
+MAX_IMAGE_BLOCKS = 20  # Anthropic API limit per request
+
+def _detect_fmt(data: bytes) -> str:
+    if data[:4] == b'%PDF':
+        return 'pdf'
+    if data[:3] == b'\xff\xd8\xff':
+        return 'jpeg'
+    if data[:8] == b'\x89PNG\r\n\x1a\n':
+        return 'png'
+    if data[:4] in (b'II*\x00', b'MM\x00*'):
+        return 'tiff'
+    return 'unknown'
+
+
+def _image_block(data: bytes, fmt: str) -> dict | None:
+    """Convert raw image bytes to an Anthropic image content block."""
+    if fmt == 'tiff':
+        try:
+            from PIL import Image
+            img = Image.open(BytesIO(data))
+            buf = BytesIO()
+            img.save(buf, format='PNG')
+            data, fmt = buf.getvalue(), 'png'
+        except Exception as exc:
+            logger.warning(f"TIFF→PNG conversion failed: {exc}")
+            return None
+    media = {'jpeg': 'image/jpeg', 'png': 'image/png'}.get(fmt)
+    if not media:
+        return None
+    return {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": media,
+            "data": base64.standard_b64encode(data).decode(),
+        },
+    }
+
+
+def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], bool]:
     """
-    If pdf_bytes is an Adobe PDF Package/Portfolio, extract the largest embedded file.
-    Returns (content_bytes, was_unwrapped).
+    Build Claude content blocks from a downloaded PDF.
+    If it's a PDF Package, extract embedded files (TIFF/JPEG scans) as image blocks.
+    Returns (blocks, is_package).
     """
     try:
         from pypdf import PdfReader
         reader = PdfReader(BytesIO(pdf_bytes))
-        attachments = reader.attachments  # dict[str, list[bytes]]
+        attachments = reader.attachments
         if not attachments:
-            return pdf_bytes, False
-        candidates = [f for files in attachments.values() for f in files if f]
-        if not candidates:
-            return pdf_bytes, False
-        largest = max(candidates, key=len)
-        if len(largest) > 1024:
-            return largest, True
+            return None, False  # plain PDF — caller handles
+
+        blocks: list[dict] = []
+        for _name, file_list in sorted(attachments.items()):
+            for raw in file_list:
+                if not raw or len(raw) < 8:
+                    continue
+                fmt = _detect_fmt(raw)
+                if fmt == 'pdf':
+                    blocks.append({
+                        "type": "document",
+                        "source": {"type": "base64", "media_type": "application/pdf",
+                                   "data": base64.standard_b64encode(raw).decode()},
+                    })
+                else:
+                    blk = _image_block(raw, fmt)
+                    if blk:
+                        blocks.append(blk)
+                if len(blocks) >= MAX_IMAGE_BLOCKS:
+                    break
+            if len(blocks) >= MAX_IMAGE_BLOCKS:
+                break
+
+        if blocks:
+            logger.info(f"PDF Package: extracted {len(blocks)} content blocks")
+            return blocks, True
     except Exception as exc:
         logger.warning(f"PDF package extraction failed: {exc}")
-    return pdf_bytes, False
+    return None, False
 
 
 def _row_to_dict(r) -> dict:
@@ -228,48 +287,44 @@ async def fetch_docket(
     )
     await db.commit()
 
-    # Unwrap PDF Package/Portfolio if needed
-    process_bytes, was_unwrapped = _unwrap_pdf_package(pdf_bytes)
-    if was_unwrapped:
-        logger.info(f"Docket {docket_nr}: extracted embedded PDF from package ({len(process_bytes)} bytes)")
+    # Build content blocks — handle PDF Package (embedded TIFF/JPEG scans)
+    content_blocks, is_package = _build_content_blocks(pdf_bytes)
 
-    # Truncate if over limit
     truncated = False
-    if len(process_bytes) > MAX_PDF_BYTES:
-        process_bytes = process_bytes[:MAX_PDF_BYTES]
-        truncated = True
+    if not is_package:
+        # Plain PDF — truncate if needed, send as document
+        process_bytes = pdf_bytes
+        if len(pdf_bytes) > MAX_PDF_BYTES:
+            process_bytes = pdf_bytes[:MAX_PDF_BYTES]
+            truncated = True
+        content_blocks = [{
+            "type": "document",
+            "source": {"type": "base64", "media_type": "application/pdf",
+                       "data": base64.standard_b64encode(process_bytes).decode()},
+            "cache_control": {"type": "ephemeral"},
+        }]
+
+    note = ""
+    if truncated:
+        note = (f"\n\nNote: PDF is {len(pdf_bytes) // (1024*1024)} MB; "
+                f"only the first {MAX_PDF_BYTES // (1024*1024)} MB were processed.")
+    elif is_package and len(content_blocks) >= MAX_IMAGE_BLOCKS:
+        note = f"\n\nNote: PDF Package contained many pages; only the first {MAX_IMAGE_BLOCKS} were analyzed."
 
     # Send to Claude
     try:
         import anthropic as _anthropic
         client = _anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-        pdf_b64 = base64.standard_b64encode(process_bytes).decode("utf-8")
-
         response = await client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=4096,
             messages=[{
                 "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "application/pdf",
-                            "data": pdf_b64,
-                        },
-                        "cache_control": {"type": "ephemeral"},
-                    },
-                    {
-                        "type": "text",
-                        "text": SUMMARIZE_PROMPT + (
-                            f"\n\nNote: This PDF is {len(pdf_bytes) // (1024*1024)} MB. "
-                            f"Only the first {MAX_PDF_BYTES // (1024*1024)} MB were processed."
-                            if truncated else ""
-                        ),
-                    }
-                ],
+                "content": content_blocks + [{
+                    "type": "text",
+                    "text": SUMMARIZE_PROMPT + note,
+                }],
             }],
         )
         summary = response.content[0].text
