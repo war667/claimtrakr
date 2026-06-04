@@ -297,6 +297,8 @@ function ClaimMatches({ docketNr }) {
 
 function SummaryModal({ docket, onClose, onAsk, onFetchFull }) {
   const isTruncated = docket.pages_total > 0 && docket.pages_analyzed < docket.pages_total;
+  // Strip the embedded truncation note from summary text — we render it as a styled banner instead
+  const summaryText = (docket.summary || '').replace(/\n*---\n⚠ \*\*Partial analysis\*\*.*$/s, '').trim();
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
@@ -331,14 +333,28 @@ function SummaryModal({ docket, onClose, onAsk, onFetchFull }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#4b6079', cursor: 'pointer', fontSize: '18px', padding: '2px 6px' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          <div style={{ padding: '20px 20px 0', }}>
+          <div style={{ padding: '20px 20px 0' }}>
             <div style={{
               fontSize: '13px', color: '#e2e8f0', lineHeight: '1.7',
               whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace',
             }}>
-              {docket.summary || 'No summary available.'}
+              {summaryText || 'No summary available.'}
             </div>
           </div>
+          {isTruncated && (
+            <div style={{
+              margin: '16px 20px 0',
+              padding: '10px 14px',
+              background: 'rgba(234,179,8,0.08)',
+              border: '1px solid rgba(234,179,8,0.3)',
+              borderLeft: '3px solid #eab308',
+              borderRadius: '6px',
+              fontSize: '12px', color: '#fde047', lineHeight: '1.5',
+            }}>
+              ⚠ Partial analysis — <strong>{docket.pages_analyzed} of {docket.pages_total} pages</strong> were analyzed.
+              Use <strong>Analyze All Pages</strong> below to process the full docket.
+            </div>
+          )}
           {docket.location_plss && <ClaimMatches docketNr={docket.docket_nr} />}
           <div style={{ height: '16px' }} />
         </div>
