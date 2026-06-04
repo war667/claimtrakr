@@ -554,34 +554,24 @@ export default function DocketsPage() {
     setFetching(docNr);
     setFetchError('');
     try {
-      // Kick off background analysis — returns immediately with 'downloading' status
       const initial = await fetchDocket(docNr, { full });
       setDbRecords((prev) => ({ ...prev, [initial.docket_nr]: initial }));
-
-      // Poll every 5 s until ready or error
-      await new Promise((resolve) => {
-        const iv = setInterval(async () => {
-          try {
-            const rec = await getDocket(docNr);
-            setDbRecords((prev) => ({ ...prev, [rec.docket_nr]: rec }));
-            if (rec.status === 'ready' || rec.status === 'error') {
-              clearInterval(iv);
-              if (rec.status === 'error') setFetchError(rec.error_msg || 'Processing failed');
-              resolve();
-            }
-          } catch (e) {
-            clearInterval(iv);
-            setFetchError(e.message);
-            resolve();
-          }
-        }, 5000);
-      });
     } catch (e) {
       setFetchError(e.message);
     } finally {
       setFetching(null);
     }
   }
+
+  // Auto-refresh every 5 s whenever any docket is still downloading/processing
+  const anyInProgress = Object.values(dbRecords).some(
+    (r) => r.status === 'downloading' || r.status === 'processing'
+  );
+  useEffect(() => {
+    if (!anyInProgress) return;
+    const iv = setInterval(loadDbRecords, 5000);
+    return () => clearInterval(iv);
+  }, [anyInProgress]);
 
   async function handleDelete(doc) {
     if (!window.confirm(`Remove docket ${doc.docket} (${doc.property}) from the library?`)) return;
