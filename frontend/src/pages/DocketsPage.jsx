@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { listDockets, getDocket, fetchDocket, deleteDocket, openDocketPdf, streamAskDocket } from '../api/dockets';
+import { listDockets, getDocket, fetchDocket, deleteDocket, openDocketPdf, streamAskDocket, getDocketClaims } from '../api/dockets';
 
 // ---------------------------------------------------------------------------
 // Static dataset for browsing (client-side) — mirrors backend ALL_RECORDS
@@ -232,6 +232,69 @@ function AskPanel({ docket, onClose }) {
 // Summary modal
 // ---------------------------------------------------------------------------
 
+function ClaimMatches({ docketNr }) {
+  const [data, setData] = React.useState(null);
+
+  React.useEffect(() => {
+    getDocketClaims(docketNr).then(setData).catch(() => {});
+  }, [docketNr]);
+
+  if (!data || !data.matched) return null;
+
+  const { plss, active_count, closed_count, active } = data;
+  const plssLabel = `T.${plss.township}${plss.township_dir}, R.${plss.range}${plss.range_dir}` +
+    (plss.sections?.length ? ` § ${plss.sections.join(', ')}` : '');
+
+  return (
+    <div style={{
+      margin: '16px 20px 0',
+      padding: '12px 14px',
+      background: '#061422',
+      border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: '8px',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 700, color: '#4b6079', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          BLM Claims — {plssLabel}
+        </div>
+        <div style={{ display: 'flex', gap: '8px', fontSize: '11px' }}>
+          <span style={{ padding: '2px 8px', borderRadius: '999px', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)', color: '#86efac', fontWeight: 600 }}>
+            {active_count} active
+          </span>
+          <span style={{ padding: '2px 8px', borderRadius: '999px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#4b6079', fontWeight: 600 }}>
+            {closed_count} closed
+          </span>
+        </div>
+      </div>
+      {active.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {active.slice(0, 8).map((c) => (
+            <div key={c.serial_nr} style={{ display: 'flex', gap: '10px', alignItems: 'baseline', fontSize: '11px' }}>
+              <a href={c.blm_url} target="_blank" rel="noreferrer"
+                style={{ color: '#93c5fd', fontFamily: 'monospace', textDecoration: 'none', flexShrink: 0 }}
+                onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+              >{c.serial_nr}</a>
+              <span style={{ color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {c.claim_name || '—'}
+              </span>
+              <span style={{ color: '#4b6079', flexShrink: 0 }}>§{c.section}</span>
+              {c.acres && <span style={{ color: '#4b6079', flexShrink: 0 }}>{c.acres.toFixed(0)} ac</span>}
+            </div>
+          ))}
+          {active_count > 8 && (
+            <div style={{ fontSize: '11px', color: '#4b6079', marginTop: '2px' }}>
+              +{active_count - 8} more active claims in this area
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize: '11px', color: '#4b6079' }}>No active claims in this section — area may be open for staking.</div>
+      )}
+    </div>
+  );
+}
+
 function SummaryModal({ docket, onClose, onAsk, onFetchFull }) {
   const isTruncated = docket.pages_total > 0 && docket.pages_analyzed < docket.pages_total;
   return (
@@ -267,13 +330,17 @@ function SummaryModal({ docket, onClose, onAsk, onFetchFull }) {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#4b6079', cursor: 'pointer', fontSize: '18px', padding: '2px 6px' }}>✕</button>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-          <div style={{
-            fontSize: '13px', color: '#e2e8f0', lineHeight: '1.7',
-            whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace',
-          }}>
-            {docket.summary || 'No summary available.'}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ padding: '20px 20px 0', }}>
+            <div style={{
+              fontSize: '13px', color: '#e2e8f0', lineHeight: '1.7',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace',
+            }}>
+              {docket.summary || 'No summary available.'}
+            </div>
           </div>
+          {docket.location_plss && <ClaimMatches docketNr={docket.docket_nr} />}
+          <div style={{ height: '16px' }} />
         </div>
         <div style={{
           padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.08)',

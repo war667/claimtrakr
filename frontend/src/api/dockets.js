@@ -44,6 +44,10 @@ export function fetchDocket(docketNr, { full = false } = {}) {
   return apiFetch(`/api/v1/dockets/${encodeURIComponent(docketNr)}/fetch${qs}`, { method: 'POST' });
 }
 
+export function getDocketClaims(docketNr) {
+  return apiFetch(`/api/v1/dockets/${encodeURIComponent(docketNr)}/claims`);
+}
+
 export function deleteDocket(docketNr) {
   return apiFetch(`/api/v1/dockets/${encodeURIComponent(docketNr)}`, { method: 'DELETE' });
 }

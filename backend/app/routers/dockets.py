@@ -53,6 +53,12 @@ Extract and return:
 
 Be concise and direct. Use bullet points. Flag any patenting language, homestead entries, \
 state lease numbers, or evidence the claim was converted to private title.
+
+---
+At the very end of your response, output the primary property location in this exact format:
+<plss>{"township":"32","township_dir":"S","range":"9","range_dir":"W","sections":["14","15"]}</plss>
+Use uppercase direction letters (N/S/E/W). Sections are bare numbers as strings. \
+Only include sections clearly identified. If the PLSS location cannot be determined, output: <plss>null</plss>
 """
 
 
@@ -94,6 +100,30 @@ def _detect_fmt(data: bytes) -> str:
     if data[:4] in (b'II*\x00', b'MM\x00*'):
         return 'tiff'
     return 'unknown'
+
+
+def _extract_plss(text: str) -> tuple[str, dict | None]:
+    """Strip <plss>…</plss> block from summary, return (clean_text, plss_dict | None)."""
+    import re
+    m = re.search(r'<plss>(.*?)</plss>', text, re.DOTALL)
+    if not m:
+        return text, None
+    raw = m.group(1).strip()
+    cleaned = (text[:m.start()].rstrip() + "\n" + text[m.end():].lstrip()).strip()
+    if raw == 'null':
+        return cleaned, None
+    try:
+        plss = json.loads(raw)
+        required = ('township', 'township_dir', 'range', 'range_dir')
+        if all(plss.get(k) for k in required):
+            # Normalise directions to uppercase
+            for k in ('township_dir', 'range_dir'):
+                plss[k] = str(plss[k]).strip().upper()
+            plss['sections'] = [str(s).strip() for s in plss.get('sections') or [] if str(s).strip().isdigit()]
+            return cleaned, plss
+    except Exception:
+        pass
+    return cleaned, None
 
 
 def _image_block(data: bytes, fmt: str) -> dict | None:
@@ -266,6 +296,7 @@ def _row_to_dict(r) -> dict:
         "processed_at": r[16].isoformat() if r[16] else None,
         "created_at": r[17].isoformat() if r[17] else None,
         "pages_total": r[18], "pages_analyzed": r[19],
+        "location_plss": r[20],
     }
 
 
@@ -273,7 +304,7 @@ SELECT_COLS = """
     id, docket_nr, agency, state, county, property_name, commodity,
     pdf_url, pdf_path, file_size_bytes, summary, extracted_text, land_hint,
     status, error_msg, fetched_at, processed_at, created_at,
-    pages_total, pages_analyzed
+    pages_total, pages_analyzed, location_plss
 """
 
 
@@ -363,6 +394,83 @@ async def get_rendered_pdf(docket_nr: str, db: AsyncSession = Depends(get_db)):
     )
 
 
+STATE_ABBR = {"Utah": "UT", "Nevada": "NV"}
+
+@router.get("/{docket_nr}/claims")
+async def get_docket_claims(docket_nr: str, db: AsyncSession = Depends(get_db)):
+    """Query local BLM claims table for claims matching this docket's PLSS location."""
+    result = await db.execute(
+        text("SELECT state, location_plss FROM usgs_dockets WHERE docket_nr = :nr"),
+        {"nr": docket_nr},
+    )
+    row = result.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Docket not found")
+
+    state_full, plss = row
+    if not plss:
+        return {"matched": False, "reason": "no_plss"}
+
+    state_abbr = STATE_ABBR.get(state_full)
+    if not state_abbr:
+        return {"matched": False, "reason": "unknown_state"}
+
+    # Build WHERE clause — always match on township+range, optionally filter by section
+    where = """
+        UPPER(TRIM(state)) = :state
+        AND UPPER(TRIM(township)) = :twp
+        AND UPPER(TRIM(township_dir)) = :twp_dir
+        AND UPPER(TRIM("range")) = :rng
+        AND UPPER(TRIM(range_dir)) = :rng_dir
+    """
+    params: dict = {
+        "state": state_abbr.upper(),
+        "twp": str(plss["township"]).upper(),
+        "twp_dir": str(plss["township_dir"]).upper(),
+        "rng": str(plss["range"]).upper(),
+        "rng_dir": str(plss["range_dir"]).upper(),
+    }
+
+    sections = [s for s in (plss.get("sections") or []) if s.isdigit()]
+    if sections:
+        placeholders = ", ".join(f"'{s}'" for s in sections)
+        where += f" AND TRIM(section) IN ({placeholders})"
+
+    q = await db.execute(
+        text(f"""
+            SELECT serial_nr, claim_name, claimant_name, case_status,
+                   disposition_cd, disposition_desc, section, acres, location_dt, blm_url
+            FROM claims
+            WHERE {where}
+            ORDER BY case_status ASC, location_dt DESC
+            LIMIT 100
+        """),
+        params,
+    )
+    rows = q.fetchall()
+
+    def _fmt(r):
+        return {
+            "serial_nr": r[0], "claim_name": r[1], "claimant_name": r[2],
+            "case_status": r[3], "disposition_cd": r[4], "disposition_desc": r[5],
+            "section": r[6], "acres": float(r[7]) if r[7] else None,
+            "location_dt": r[8].isoformat() if r[8] else None, "blm_url": r[9],
+        }
+
+    active = [_fmt(r) for r in rows if r[3] == "ACTIVE"]
+    closed = [_fmt(r) for r in rows if r[3] != "ACTIVE"]
+
+    return {
+        "matched": True,
+        "plss": plss,
+        "state_abbr": state_abbr,
+        "active_count": len(active),
+        "closed_count": len(closed),
+        "active": active[:20],
+        "closed_sample": closed[:5],
+    }
+
+
 @router.delete("/{docket_nr}")
 async def delete_docket(docket_nr: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -435,6 +543,8 @@ async def _bg_fetch_analyze(docket_nr: str, record: dict, pdf_url: str, pdf_path
                 )
                 summary = synth.content[0].text
 
+            summary, plss = _extract_plss(summary)
+
             if truncated:
                 summary += (
                     f"\n\n---\n⚠ **Partial analysis** — {n_pages} of {pages_total} pages were analyzed. "
@@ -444,10 +554,12 @@ async def _bg_fetch_analyze(docket_nr: str, record: dict, pdf_url: str, pdf_path
             await db.execute(text("""
                 UPDATE usgs_dockets
                 SET status='ready', summary=:summary, extracted_text=:text,
-                    pages_total=:ptotal, pages_analyzed=:panalyzed, processed_at=NOW()
+                    pages_total=:ptotal, pages_analyzed=:panalyzed,
+                    location_plss=:plss, processed_at=NOW()
                 WHERE docket_nr=:nr
             """), {"summary": summary, "text": summary,
-                   "ptotal": pages_total, "panalyzed": n_pages, "nr": docket_nr})
+                   "ptotal": pages_total, "panalyzed": n_pages,
+                   "plss": json.dumps(plss) if plss else None, "nr": docket_nr})
             await db.commit()
             logger.info(f"{docket_nr}: analysis complete")
 
