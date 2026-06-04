@@ -56,6 +56,14 @@ state lease numbers, or evidence the claim was converted to private title.
 """
 
 
+CHUNK_PROMPT = """\
+You are analyzing a portion of a historical USGS mineral exploration docket (1950s–1970s).
+Extract any useful information visible in these pages: property location, legal description \
+(township/range/section), land type (BLM/state/patented/private), minerals targeted, \
+exploration methods, assay results, funding decisions, and any staking-relevant details.
+Be concise and use bullet points. Note page numbers where possible.
+"""
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -72,8 +80,8 @@ def _find_record(docket_nr: str) -> Optional[dict]:
     return None
 
 
-MAX_IMAGE_BLOCKS = 12
-MAX_TOTAL_RAW_BYTES = 3_500_000  # 3.5 MB raw → ~4.7 MB base64, well under API limit
+MAX_PAGES = 120           # absolute ceiling to avoid runaway memory
+MAX_BLOCKS_PER_CHUNK = 8  # images per Claude API call (keeps payloads ~2 MB base64)
 
 def _detect_fmt(data: bytes) -> str:
     if data[:4] == b'%PDF':
@@ -134,16 +142,14 @@ def _jpeg_block(jpeg_bytes: bytes) -> dict:
     }
 
 
-def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], str]:
+def _build_content_blocks(pdf_bytes: bytes) -> list[dict]:
     """
     Build Claude image blocks from a PDF or PDF Portfolio.
+    Returns ALL renderable pages (up to MAX_PAGES); the caller chunks them.
 
-    Strategy A: Portfolio — open each embedded file with PyMuPDF and render
-                its pages to JPEG (handles embedded PDFs and raw images alike).
-    Strategy B: Plain PDF — render the first N pages directly to JPEG.
-
-    Always returns image blocks (never sends PDFs to Claude) to avoid
-    PDF validity and size issues entirely.
+    Strategy A: PDF Portfolio — extract each embedded file with PyMuPDF and
+                render its pages to JPEG (handles TIFFs, JPEGs, sub-PDFs).
+    Strategy B: Plain PDF — render visible pages directly to JPEG.
     """
     import fitz
 
@@ -152,59 +158,41 @@ def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], str]:
     logger.info(f"PyMuPDF: {doc.page_count} pages, {n_embedded} embedded files")
 
     blocks: list[dict] = []
-    total_raw = 0
 
-    # --- Strategy A: PDF Portfolio with embedded files ---
     if n_embedded > 0:
         for i in range(n_embedded):
-            if len(blocks) >= MAX_IMAGE_BLOCKS or total_raw >= MAX_TOTAL_RAW_BYTES:
+            if len(blocks) >= MAX_PAGES:
                 break
             info = doc.embfile_info(i)
             content = doc.embfile_get(i)
-            name = info.get("name", f"file_{i}")
-            logger.info(f"  Embedded {i}: '{name}' {len(content)} bytes")
+            logger.info(f"  Embedded {i}: '{info.get('name', '?')}' {len(content)} bytes")
 
             fmt = _detect_fmt(content)
             if fmt == "pdf":
                 try:
                     subdoc = fitz.open(stream=content, filetype="pdf")
-                    for pnum in range(min(3, subdoc.page_count)):
-                        if len(blocks) >= MAX_IMAGE_BLOCKS or total_raw >= MAX_TOTAL_RAW_BYTES:
+                    for pnum in range(subdoc.page_count):
+                        if len(blocks) >= MAX_PAGES:
                             break
-                        jpeg = _render_page_jpeg(subdoc.load_page(pnum))
-                        logger.info(f"    Page {pnum}: {len(jpeg)} bytes JPEG")
-                        if total_raw + len(jpeg) <= MAX_TOTAL_RAW_BYTES:
-                            blocks.append(_jpeg_block(jpeg))
-                            total_raw += len(jpeg)
+                        blocks.append(_jpeg_block(_render_page_jpeg(subdoc.load_page(pnum))))
                     subdoc.close()
                 except Exception as exc:
                     logger.warning(f"  Failed to render embedded PDF: {exc}")
             else:
                 blk = _image_block(content, fmt)
                 if blk:
-                    img_raw = len(base64.b64decode(blk["source"]["data"]))
-                    if total_raw + img_raw <= MAX_TOTAL_RAW_BYTES:
-                        blocks.append(blk)
-                        total_raw += img_raw
+                    blocks.append(blk)
 
-        logger.info(f"Portfolio extraction: {len(blocks)} blocks, {total_raw} bytes")
+        logger.info(f"Portfolio extraction: {len(blocks)} blocks")
 
-    # --- Strategy B: render visible pages (plain PDF or Portfolio fallback) ---
     if not blocks:
-        logger.info(f"Rendering first pages of {doc.page_count}-page PDF")
-        for pnum in range(min(MAX_IMAGE_BLOCKS, doc.page_count)):
-            if total_raw >= MAX_TOTAL_RAW_BYTES:
-                break
-            jpeg = _render_page_jpeg(doc.load_page(pnum))
-            logger.info(f"  Page {pnum}: {len(jpeg)} bytes JPEG")
-            if total_raw + len(jpeg) <= MAX_TOTAL_RAW_BYTES:
-                blocks.append(_jpeg_block(jpeg))
-                total_raw += len(jpeg)
+        logger.info(f"Rendering {doc.page_count} pages of plain PDF")
+        for pnum in range(min(MAX_PAGES, doc.page_count)):
+            blocks.append(_jpeg_block(_render_page_jpeg(doc.load_page(pnum))))
 
     doc.close()
-    logger.info(f"Total: {len(blocks)} image blocks, {total_raw} bytes")
-    note = f"(first {len(blocks)} pages analyzed)" if len(blocks) > 0 else ""
-    return blocks, note
+    logger.info(f"Total: {len(blocks)} image blocks")
+    return blocks
 
 
 def _render_docket_pdf(pdf_path: str, max_pages: int = 20) -> bytes:
@@ -448,7 +436,7 @@ async def fetch_docket(
 
     # Build content blocks — handles both PDF Packages and plain large PDFs
     try:
-        content_blocks, page_note = _build_content_blocks(pdf_bytes)
+        content_blocks = _build_content_blocks(pdf_bytes)
     except Exception as exc:
         await db.execute(
             text("UPDATE usgs_dockets SET status='error', error_msg=:e WHERE docket_nr=:nr"),
@@ -457,26 +445,51 @@ async def fetch_docket(
         await db.commit()
         raise HTTPException(status_code=500, detail=f"PDF extraction failed: {exc}")
 
-    note = f"\n\nNote: {page_note}" if page_note else ""
+    n_pages = len(content_blocks)
+    logger.info(f"Sending {n_pages} pages to Claude (chunked={n_pages > MAX_BLOCKS_PER_CHUNK})")
 
-    # Send to Claude
+    # Send to Claude — single call for small dockets, chunked+synthesized for large ones
     try:
         import anthropic as _anthropic
         client = _anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4096,
-            messages=[{
-                "role": "user",
-                "content": content_blocks + [{
-                    "type": "text",
-                    "text": SUMMARIZE_PROMPT + note,
-                }],
-            }],
-        )
-        summary = response.content[0].text
-        extracted_text = summary  # store summary as queryable text for now
+        if n_pages <= MAX_BLOCKS_PER_CHUNK:
+            response = await client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4096,
+                messages=[{"role": "user", "content": content_blocks + [{"type": "text", "text": SUMMARIZE_PROMPT}]}],
+            )
+            summary = response.content[0].text
+        else:
+            # Step 1: partial summary per chunk
+            chunk_summaries = []
+            for start in range(0, n_pages, MAX_BLOCKS_PER_CHUNK):
+                chunk = content_blocks[start:start + MAX_BLOCKS_PER_CHUNK]
+                end = min(start + MAX_BLOCKS_PER_CHUNK, n_pages)
+                label = f"pages {start + 1}–{end} of {n_pages}"
+                logger.info(f"  Chunk {label}")
+                r = await client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=2048,
+                    messages=[{"role": "user", "content": chunk + [{"type": "text", "text": CHUNK_PROMPT + f"\n\n(This is {label}.)"}]}],
+                )
+                chunk_summaries.append(f"### {label.title()}\n{r.content[0].text}")
+
+            # Step 2: synthesize all partial summaries
+            combined = "\n\n".join(chunk_summaries)
+            logger.info(f"  Synthesizing {len(chunk_summaries)} chunks")
+            synth = await client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4096,
+                messages=[{"role": "user", "content": [{"type": "text", "text": (
+                    f"Below are partial analyses of a {n_pages}-page USGS mineral exploration "
+                    f"docket, broken into chunks of {MAX_BLOCKS_PER_CHUNK} pages each. "
+                    f"Synthesize them into one comprehensive summary.\n\n{combined}\n\n{SUMMARIZE_PROMPT}"
+                )}]}],
+            )
+            summary = synth.content[0].text
+
+        extracted_text = summary
 
     except Exception as exc:
         await db.execute(
