@@ -72,7 +72,8 @@ def _find_record(docket_nr: str) -> Optional[dict]:
     return None
 
 
-MAX_IMAGE_BLOCKS = 20  # Anthropic API limit per request
+MAX_IMAGE_BLOCKS = 10        # pages per docket — key info is on first ~10 pages
+MAX_TOTAL_RAW_BYTES = 4_000_000  # ~5.3 MB base64; well under Anthropic's limit
 
 def _detect_fmt(data: bytes) -> str:
     if data[:4] == b'%PDF':
@@ -87,26 +88,30 @@ def _detect_fmt(data: bytes) -> str:
 
 
 def _image_block(data: bytes, fmt: str) -> dict | None:
-    """Convert raw image bytes to an Anthropic image content block."""
-    if fmt == 'tiff':
-        try:
-            from PIL import Image
-            img = Image.open(BytesIO(data))
-            buf = BytesIO()
-            img.save(buf, format='PNG')
-            data, fmt = buf.getvalue(), 'png'
-        except Exception as exc:
-            logger.warning(f"TIFF→PNG conversion failed: {exc}")
-            return None
-    media = {'jpeg': 'image/jpeg', 'png': 'image/png'}.get(fmt)
-    if not media:
+    """Resize and compress image, return Anthropic image content block."""
+    try:
+        from PIL import Image
+        img = Image.open(BytesIO(data))
+        # Resize so longest side ≤ 1500px — enough for Claude to read document text
+        w, h = img.size
+        if max(w, h) > 1500:
+            ratio = 1500 / max(w, h)
+            img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+        # Convert to RGB for JPEG (handles grayscale, RGBA, palette modes)
+        if img.mode not in ('RGB', 'L'):
+            img = img.convert('RGB')
+        buf = BytesIO()
+        img.save(buf, format='JPEG', quality=80, optimize=True)
+        jpeg_bytes = buf.getvalue()
+    except Exception as exc:
+        logger.warning(f"Image processing failed: {exc}")
         return None
     return {
         "type": "image",
         "source": {
             "type": "base64",
-            "media_type": media,
-            "data": base64.standard_b64encode(data).decode(),
+            "media_type": "image/jpeg",
+            "data": base64.standard_b64encode(jpeg_bytes).decode(),
         },
     }
 
@@ -125,25 +130,35 @@ def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], bool]:
             return None, False  # plain PDF — caller handles
 
         blocks: list[dict] = []
+        total_raw = 0
+        done = False
         for _name, file_list in sorted(attachments.items()):
+            if done:
+                break
             for raw in file_list:
                 if not raw or len(raw) < 8:
                     continue
                 fmt = _detect_fmt(raw)
                 if fmt == 'pdf':
-                    blocks.append({
+                    blk = {
                         "type": "document",
                         "source": {"type": "base64", "media_type": "application/pdf",
                                    "data": base64.standard_b64encode(raw).decode()},
-                    })
+                    }
+                    blocks.append(blk)
+                    total_raw += len(raw)
                 else:
                     blk = _image_block(raw, fmt)
                     if blk:
+                        img_raw = len(base64.b64decode(blk["source"]["data"]))
+                        if total_raw + img_raw > MAX_TOTAL_RAW_BYTES:
+                            done = True
+                            break
                         blocks.append(blk)
+                        total_raw += img_raw
                 if len(blocks) >= MAX_IMAGE_BLOCKS:
+                    done = True
                     break
-            if len(blocks) >= MAX_IMAGE_BLOCKS:
-                break
 
         if blocks:
             logger.info(f"PDF Package: extracted {len(blocks)} content blocks")
