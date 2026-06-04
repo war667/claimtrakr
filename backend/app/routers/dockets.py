@@ -116,82 +116,95 @@ def _image_block(data: bytes, fmt: str) -> dict | None:
     }
 
 
-def _pages_to_pdf(pdf_bytes: bytes, max_pages: int = 5) -> bytes:
-    """Extract first N pages from a PDF as a new valid PDF document."""
-    from pypdf import PdfReader, PdfWriter
-    reader = PdfReader(BytesIO(pdf_bytes))
-    writer = PdfWriter()
-    n = min(max_pages, len(reader.pages))
-    for i in range(n):
-        writer.add_page(reader.pages[i])
-    buf = BytesIO()
-    writer.write(buf)
-    result = buf.getvalue()
-    logger.info(f"Extracted {n}/{len(reader.pages)} pages → {len(result)} bytes")
-    return result
+def _render_page_jpeg(page, dpi: int = 150) -> bytes:
+    import fitz
+    mat = fitz.Matrix(dpi / 72, dpi / 72)
+    pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
+    return pix.tobytes("jpeg")
+
+
+def _jpeg_block(jpeg_bytes: bytes) -> dict:
+    return {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": base64.standard_b64encode(jpeg_bytes).decode(),
+        },
+    }
 
 
 def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], str]:
     """
-    Build Claude content blocks from a downloaded PDF.
-    Strategy 1: PDF Package → extract embedded image files (TIFF/JPEG scans).
-    Strategy 2: Any PDF → extract first 5 pages as a valid sub-PDF.
-    Returns (blocks, note).
-    """
-    from pypdf import PdfReader
-    reader = PdfReader(BytesIO(pdf_bytes))
+    Build Claude image blocks from a PDF or PDF Portfolio.
 
-    # --- Strategy 1: PDF Package with embedded files ---
-    attachments = reader.attachments
-    if attachments:
-        logger.info(f"PDF Package: {len(attachments)} embedded files")
-        blocks: list[dict] = []
-        total_raw = 0
-        done = False
-        for _name, file_list in sorted(attachments.items()):
-            if done:
+    Strategy A: Portfolio — open each embedded file with PyMuPDF and render
+                its pages to JPEG (handles embedded PDFs and raw images alike).
+    Strategy B: Plain PDF — render the first N pages directly to JPEG.
+
+    Always returns image blocks (never sends PDFs to Claude) to avoid
+    PDF validity and size issues entirely.
+    """
+    import fitz
+
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    n_embedded = doc.embfile_count()
+    logger.info(f"PyMuPDF: {doc.page_count} pages, {n_embedded} embedded files")
+
+    blocks: list[dict] = []
+    total_raw = 0
+
+    # --- Strategy A: PDF Portfolio with embedded files ---
+    if n_embedded > 0:
+        for i in range(n_embedded):
+            if len(blocks) >= MAX_IMAGE_BLOCKS or total_raw >= MAX_TOTAL_RAW_BYTES:
                 break
-            for raw in file_list:
-                if not raw or len(raw) < 8:
-                    continue
-                fmt = _detect_fmt(raw)
-                logger.info(f"  '{_name}': {len(raw)} bytes fmt={fmt}")
-                if fmt == 'pdf' and len(raw) <= MAX_PDF_BYTES:
-                    blocks.append({
-                        "type": "document",
-                        "source": {"type": "base64", "media_type": "application/pdf",
-                                   "data": base64.standard_b64encode(raw).decode()},
-                    })
-                    total_raw += len(raw)
-                elif fmt != 'pdf':
-                    blk = _image_block(raw, fmt)
-                    if blk:
-                        img_raw = len(base64.b64decode(blk["source"]["data"]))
-                        if total_raw + img_raw > MAX_TOTAL_RAW_BYTES:
-                            done = True
+            info = doc.embfile_info(i)
+            content = doc.embfile_get(i)
+            name = info.get("name", f"file_{i}")
+            logger.info(f"  Embedded {i}: '{name}' {len(content)} bytes")
+
+            fmt = _detect_fmt(content)
+            if fmt == "pdf":
+                try:
+                    subdoc = fitz.open(stream=content, filetype="pdf")
+                    for pnum in range(min(3, subdoc.page_count)):
+                        if len(blocks) >= MAX_IMAGE_BLOCKS or total_raw >= MAX_TOTAL_RAW_BYTES:
                             break
+                        jpeg = _render_page_jpeg(subdoc.load_page(pnum))
+                        logger.info(f"    Page {pnum}: {len(jpeg)} bytes JPEG")
+                        if total_raw + len(jpeg) <= MAX_TOTAL_RAW_BYTES:
+                            blocks.append(_jpeg_block(jpeg))
+                            total_raw += len(jpeg)
+                    subdoc.close()
+                except Exception as exc:
+                    logger.warning(f"  Failed to render embedded PDF: {exc}")
+            else:
+                blk = _image_block(content, fmt)
+                if blk:
+                    img_raw = len(base64.b64decode(blk["source"]["data"]))
+                    if total_raw + img_raw <= MAX_TOTAL_RAW_BYTES:
                         blocks.append(blk)
                         total_raw += img_raw
-                if len(blocks) >= MAX_IMAGE_BLOCKS:
-                    done = True
-                    break
 
-        logger.info(f"Package blocks: {len(blocks)}, {total_raw} raw bytes")
-        if blocks:
-            note = f"(PDF Package — first {len(blocks)} pages analyzed)" if len(blocks) >= MAX_IMAGE_BLOCKS else ""
-            return blocks, note
+        logger.info(f"Portfolio extraction: {len(blocks)} blocks, {total_raw} bytes")
 
-    # --- Strategy 2: Extract first N pages as a valid PDF ---
-    n_pages = len(reader.pages)
-    logger.info(f"Plain PDF: {n_pages} pages, extracting first 5")
-    page_pdf = _pages_to_pdf(pdf_bytes, max_pages=5)
-    note = f"(Large PDF — only first 5 of {n_pages} pages analyzed)" if n_pages > 5 else ""
-    return [{
-        "type": "document",
-        "source": {"type": "base64", "media_type": "application/pdf",
-                   "data": base64.standard_b64encode(page_pdf).decode()},
-        "cache_control": {"type": "ephemeral"},
-    }], note
+    # --- Strategy B: render visible pages (plain PDF or Portfolio fallback) ---
+    if not blocks:
+        logger.info(f"Rendering first pages of {doc.page_count}-page PDF")
+        for pnum in range(min(MAX_IMAGE_BLOCKS, doc.page_count)):
+            if total_raw >= MAX_TOTAL_RAW_BYTES:
+                break
+            jpeg = _render_page_jpeg(doc.load_page(pnum))
+            logger.info(f"  Page {pnum}: {len(jpeg)} bytes JPEG")
+            if total_raw + len(jpeg) <= MAX_TOTAL_RAW_BYTES:
+                blocks.append(_jpeg_block(jpeg))
+                total_raw += len(jpeg)
+
+    doc.close()
+    logger.info(f"Total: {len(blocks)} image blocks, {total_raw} bytes")
+    note = f"(first {len(blocks)} pages analyzed)" if len(blocks) > 0 else ""
+    return blocks, note
 
 
 def _row_to_dict(r) -> dict:
