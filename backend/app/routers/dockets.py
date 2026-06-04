@@ -33,7 +33,7 @@ router = APIRouter(dependencies=[Depends(verify_credentials)])
 # Constants
 # ---------------------------------------------------------------------------
 
-USGS_BASE = "https://pubsdata.usgs.gov/pubs/ds/1004/scans"
+USGS_BASE = "https://pubs.usgs.gov/ds/1004/scans"
 PDF_STORE = Path(settings.UPLOADS_PATH) / "usgs_pdfs"
 MAX_PDF_BYTES = 20 * 1024 * 1024   # 20 MB — leave headroom for base64 overhead
 
