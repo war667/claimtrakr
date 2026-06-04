@@ -297,8 +297,12 @@ function ClaimMatches({ docketNr }) {
 
 function SummaryModal({ docket, onClose, onAsk, onFetchFull }) {
   const isTruncated = docket.pages_total > 0 && docket.pages_analyzed < docket.pages_total;
-  // Strip the embedded truncation note from summary text — we render it as a styled banner instead
-  const summaryText = (docket.summary || '').replace(/\n*---\n⚠ \*\*Partial analysis\*\*.*$/s, '').trim();
+  // Strip the truncation note (handles single or double --- separators before it)
+  const rawSummary = (docket.summary || '').replace(/[\n\r]*(?:---[\n\r]+)*⚠ \*\*Partial analysis\*\*[\s\S]*$/, '').trim();
+  // Split off the leading *italic header* line if present
+  const headerMatch = rawSummary.match(/^\*(.+?)\*\n+([\s\S]*)$/);
+  const headerLine = headerMatch ? headerMatch[1] : null;
+  const summaryBody = headerMatch ? headerMatch[2].trim() : rawSummary;
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
@@ -334,11 +338,20 @@ function SummaryModal({ docket, onClose, onAsk, onFetchFull }) {
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <div style={{ padding: '20px 20px 0' }}>
+            {headerLine && (
+              <div style={{
+                fontSize: '12px', color: '#94a3b8', fontStyle: 'italic',
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: '6px', padding: '8px 12px', marginBottom: '14px', lineHeight: '1.5',
+              }}>
+                {headerLine}
+              </div>
+            )}
             <div style={{
               fontSize: '13px', color: '#e2e8f0', lineHeight: '1.7',
               whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace',
             }}>
-              {summaryText || 'No summary available.'}
+              {summaryBody || 'No summary available.'}
             </div>
           </div>
           {isTruncated && (
@@ -355,7 +368,14 @@ function SummaryModal({ docket, onClose, onAsk, onFetchFull }) {
               Use <strong>Analyze All Pages</strong> below to process the full docket.
             </div>
           )}
-          {docket.location_plss && <ClaimMatches docketNr={docket.docket_nr} />}
+          {docket.location_plss
+            ? <ClaimMatches docketNr={docket.docket_nr} />
+            : (
+              <div style={{ margin: '16px 20px 0', fontSize: '11px', color: '#4b6079', fontStyle: 'italic' }}>
+                BLM cross-reference unavailable — location not identified. Re-fetch to try again.
+              </div>
+            )
+          }
           <div style={{ height: '16px' }} />
         </div>
         <div style={{
