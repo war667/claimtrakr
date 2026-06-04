@@ -36,7 +36,7 @@ router = APIRouter(dependencies=[Depends(verify_credentials)])
 
 USGS_BASE = "https://pubs.usgs.gov/ds/1004/scans"
 PDF_STORE = Path(settings.UPLOADS_PATH) / "usgs_pdfs"
-MAX_PDF_BYTES = 20 * 1024 * 1024   # 20 MB — leave headroom for base64 overhead
+MAX_PDF_BYTES = 3 * 1024 * 1024    # 3 MB raw → ~4 MB base64, safe under API limit
 
 SUMMARIZE_PROMPT = """\
 You are analyzing a historical USGS mineral exploration docket from the 1950s–1970s \
@@ -72,8 +72,8 @@ def _find_record(docket_nr: str) -> Optional[dict]:
     return None
 
 
-MAX_IMAGE_BLOCKS = 10        # pages per docket — key info is on first ~10 pages
-MAX_TOTAL_RAW_BYTES = 4_000_000  # ~5.3 MB base64; well under Anthropic's limit
+MAX_IMAGE_BLOCKS = 5
+MAX_TOTAL_RAW_BYTES = 1_200_000  # 1.2 MB raw → ~1.6 MB base64
 
 def _detect_fmt(data: bytes) -> str:
     if data[:4] == b'%PDF':
@@ -88,23 +88,23 @@ def _detect_fmt(data: bytes) -> str:
 
 
 def _image_block(data: bytes, fmt: str) -> dict | None:
-    """Resize and compress image, return Anthropic image content block."""
+    """Resize and compress image to JPEG, return Anthropic image content block."""
     try:
         from PIL import Image
         img = Image.open(BytesIO(data))
-        # Resize so longest side ≤ 1500px — enough for Claude to read document text
+        logger.info(f"Image: mode={img.mode} size={img.size} fmt={fmt}")
         w, h = img.size
-        if max(w, h) > 1500:
-            ratio = 1500 / max(w, h)
+        if max(w, h) > 1000:
+            ratio = 1000 / max(w, h)
             img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
-        # Convert to RGB for JPEG (handles grayscale, RGBA, palette modes)
-        if img.mode not in ('RGB', 'L'):
+        if img.mode not in ('RGB',):
             img = img.convert('RGB')
         buf = BytesIO()
-        img.save(buf, format='JPEG', quality=80, optimize=True)
+        img.save(buf, format='JPEG', quality=70, optimize=True)
         jpeg_bytes = buf.getvalue()
+        logger.info(f"Compressed to {len(jpeg_bytes)} bytes JPEG")
     except Exception as exc:
-        logger.warning(f"Image processing failed: {exc}")
+        logger.warning(f"Image processing failed ({fmt}): {exc}")
         return None
     return {
         "type": "image",
@@ -129,6 +129,7 @@ def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], bool]:
         if not attachments:
             return None, False  # plain PDF — caller handles
 
+        logger.info(f"PDF Package: {len(attachments)} embedded files found")
         blocks: list[dict] = []
         total_raw = 0
         done = False
@@ -139,14 +140,16 @@ def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], bool]:
                 if not raw or len(raw) < 8:
                     continue
                 fmt = _detect_fmt(raw)
+                logger.info(f"  Embedded file '{_name}': {len(raw)} bytes, fmt={fmt}")
                 if fmt == 'pdf':
-                    blk = {
-                        "type": "document",
-                        "source": {"type": "base64", "media_type": "application/pdf",
-                                   "data": base64.standard_b64encode(raw).decode()},
-                    }
-                    blocks.append(blk)
-                    total_raw += len(raw)
+                    if len(raw) <= MAX_PDF_BYTES:
+                        blk = {
+                            "type": "document",
+                            "source": {"type": "base64", "media_type": "application/pdf",
+                                       "data": base64.standard_b64encode(raw).decode()},
+                        }
+                        blocks.append(blk)
+                        total_raw += len(raw)
                 else:
                     blk = _image_block(raw, fmt)
                     if blk:
@@ -160,9 +163,11 @@ def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], bool]:
                     done = True
                     break
 
+        logger.info(f"PDF Package: built {len(blocks)} blocks, {total_raw} raw bytes")
         if blocks:
-            logger.info(f"PDF Package: extracted {len(blocks)} content blocks")
             return blocks, True
+        # Package found but no blocks extracted — raise so caller surfaces the error
+        raise ValueError(f"PDF Package has {len(attachments)} files but none could be processed")
     except Exception as exc:
         logger.warning(f"PDF package extraction failed: {exc}")
     return None, False
