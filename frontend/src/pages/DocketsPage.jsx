@@ -457,50 +457,57 @@ export default function DocketsPage() {
       {/* Header */}
       <div style={{
         padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)',
-        flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px',
+        flexShrink: 0,
       }}>
-        <div>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
-            Docket Library
-          </div>
-          <div style={{ fontSize: '11px', color: '#4b6079', marginTop: '2px' }}>
-            USGS DS-1004 · Fetch individual dockets to summarize with Claude and ask questions
-          </div>
+        <div style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
+          Docket Library
         </div>
+        <div style={{ fontSize: '11px', color: '#4b6079', marginTop: '2px' }}>
+          USGS DS-1004 · Utah & Nevada · 1950–1974
+        </div>
+      </div>
 
-        {/* Direct docket fetch */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+      {/* Fetch a new docket */}
+      <div style={{
+        padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)',
+        background: '#0b1a2e', flexShrink: 0,
+      }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: '#4b6079', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '8px' }}>
+          Fetch a docket
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <input
             value={directNr}
             onChange={(e) => setDirectNr(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleDirectFetch()}
-            placeholder="Docket # (e.g. 2710)"
+            placeholder="Enter docket number (e.g. 2710, 0262, 4815)"
             style={{
-              background: '#0f2039', border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '6px', padding: '7px 12px', color: '#f1f5f9',
-              fontSize: '13px', outline: 'none', width: '160px',
+              background: '#0f2039', border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '6px', padding: '8px 14px', color: '#f1f5f9',
+              fontSize: '13px', outline: 'none', width: '320px',
             }}
           />
           <button onClick={handleDirectFetch} disabled={!directNr.trim() || !!fetching} style={{
-            background: directNr.trim() && !fetching ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${directNr.trim() && !fetching ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)'}`,
-            borderRadius: '6px', padding: '7px 14px',
-            color: directNr.trim() && !fetching ? '#86efac' : '#4b6079',
+            background: directNr.trim() && !fetching ? '#22c55e' : 'rgba(255,255,255,0.06)',
+            border: 'none',
+            borderRadius: '6px', padding: '8px 18px',
+            color: directNr.trim() && !fetching ? '#fff' : '#4b6079',
             cursor: directNr.trim() && !fetching ? 'pointer' : 'default',
-            fontSize: '13px', fontWeight: 600,
+            fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap',
           }}>
-            {fetching ? 'Processing…' : 'Fetch PDF'}
+            {fetching ? 'Processing…' : 'Fetch & Analyze PDF →'}
           </button>
+          {fetchError && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', color: '#fca5a5', fontSize: '12px' }}>
+              <span>{fetchError}</span>
+              <span onClick={() => setFetchError('')} style={{ cursor: 'pointer', color: '#4b6079', fontSize: '14px' }}>✕</span>
+            </div>
+          )}
+        </div>
+        <div style={{ fontSize: '11px', color: '#2d3f55', marginTop: '6px' }}>
+          Downloads the PDF from USGS, analyzes it with Claude, then lets you ask questions about it.
         </div>
       </div>
-
-      {/* Fetch error */}
-      {fetchError && (
-        <div style={{ margin: '8px 24px 0', padding: '8px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', color: '#fca5a5', fontSize: '12px', display: 'flex', justifyContent: 'space-between' }}>
-          <span>{fetchError}</span>
-          <span onClick={() => setFetchError('')} style={{ cursor: 'pointer', color: '#4b6079' }}>✕</span>
-        </div>
-      )}
 
       {/* Filters */}
       <div style={{
