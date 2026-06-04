@@ -17,7 +17,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -250,6 +250,26 @@ async def get_docket(docket_nr: str, db: AsyncSession = Depends(get_db)):
     if not row:
         raise HTTPException(status_code=404, detail="Docket not fetched yet")
     return _row_to_dict(row)
+
+
+@router.get("/{docket_nr}/pdf")
+async def get_docket_pdf(docket_nr: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        text("SELECT pdf_path FROM usgs_dockets WHERE docket_nr = :nr"),
+        {"nr": docket_nr},
+    )
+    row = result.fetchone()
+    if not row or not row[0]:
+        raise HTTPException(status_code=404, detail="PDF not downloaded yet")
+    path = Path(row[0])
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="PDF file not found on disk")
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=f"docket_{docket_nr}.pdf",
+        headers={"Content-Disposition": f"inline; filename=docket_{docket_nr}.pdf"},
+    )
 
 
 @router.delete("/{docket_nr}")

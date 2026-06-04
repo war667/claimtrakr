@@ -47,6 +47,17 @@ export function deleteDocket(docketNr) {
   return apiFetch(`/api/v1/dockets/${encodeURIComponent(docketNr)}`, { method: 'DELETE' });
 }
 
+export async function openDocketPdf(docketNr) {
+  const resp = await fetch(`${BASE_URL}/api/v1/dockets/${encodeURIComponent(docketNr)}/pdf`, {
+    headers: authHeader(),
+  });
+  if (!resp.ok) throw new Error(`PDF load failed: ${resp.status}`);
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
 export async function streamAskDocket({ docketNr, question, history = [], onChunk, onDone, onError, signal }) {
   let response;
   try {
