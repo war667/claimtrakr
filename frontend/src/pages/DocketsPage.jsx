@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { listDockets, fetchDocket, streamAskDocket } from '../api/dockets';
+import { listDockets, fetchDocket, deleteDocket, streamAskDocket } from '../api/dockets';
 
 // ---------------------------------------------------------------------------
 // Static dataset for browsing (client-side) — mirrors backend ALL_RECORDS
@@ -290,7 +290,7 @@ function SummaryModal({ docket, onClose, onAsk }) {
 // Docket row
 // ---------------------------------------------------------------------------
 
-function DocketRow({ doc, onFetch, onShowSummary, onAsk, fetching }) {
+function DocketRow({ doc, onFetch, onShowSummary, onAsk, onDelete, fetching }) {
   const isReady = doc.db_status === 'ready';
   const isBusy = fetching === doc.docket || doc.db_status === 'downloading' || doc.db_status === 'processing';
 
@@ -335,21 +335,35 @@ function DocketRow({ doc, onFetch, onShowSummary, onAsk, fetching }) {
               borderRadius: '5px', padding: '4px 10px', color: '#fff',
               cursor: 'pointer', fontSize: '11px', fontWeight: 600,
             }}>Ask ⛏</button>
+            <button onClick={() => onDelete(doc)} style={{
+              background: 'none', border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: '5px', padding: '4px 8px', color: 'rgba(239,68,68,0.6)',
+              cursor: 'pointer', fontSize: '11px',
+            }} title="Remove docket">✕</button>
           </span>
         ) : (
-          <button
-            onClick={() => onFetch(doc)}
-            disabled={isBusy}
-            style={{
-              background: isBusy ? 'rgba(255,255,255,0.04)' : 'rgba(34,197,94,0.1)',
-              border: `1px solid ${isBusy ? 'rgba(255,255,255,0.08)' : 'rgba(34,197,94,0.3)'}`,
-              borderRadius: '5px', padding: '4px 10px',
-              color: isBusy ? '#4b6079' : '#86efac',
-              cursor: isBusy ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600,
-            }}
-          >
-            {isBusy ? 'Processing…' : 'Fetch PDF'}
-          </button>
+          <span style={{ display: 'inline-flex', gap: '6px' }}>
+            <button
+              onClick={() => onFetch(doc)}
+              disabled={isBusy}
+              style={{
+                background: isBusy ? 'rgba(255,255,255,0.04)' : 'rgba(34,197,94,0.1)',
+                border: `1px solid ${isBusy ? 'rgba(255,255,255,0.08)' : 'rgba(34,197,94,0.3)'}`,
+                borderRadius: '5px', padding: '4px 10px',
+                color: isBusy ? '#4b6079' : '#86efac',
+                cursor: isBusy ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600,
+              }}
+            >
+              {isBusy ? 'Processing…' : 'Fetch PDF'}
+            </button>
+            {!isBusy && (
+              <button onClick={() => onDelete(doc)} style={{
+                background: 'none', border: '1px solid rgba(239,68,68,0.25)',
+                borderRadius: '5px', padding: '4px 8px', color: 'rgba(239,68,68,0.6)',
+                cursor: 'pointer', fontSize: '11px',
+              }} title="Remove docket">✕</button>
+            )}
+          </span>
         )}
       </td>
     </tr>
@@ -439,6 +453,20 @@ export default function DocketsPage() {
     }
   }
 
+  async function handleDelete(doc) {
+    if (!window.confirm(`Remove docket ${doc.docket} (${doc.property}) from the library?`)) return;
+    try {
+      await deleteDocket(doc.docket);
+      setDbRecords((prev) => {
+        const next = { ...prev };
+        delete next[doc.docket];
+        return next;
+      });
+    } catch (e) {
+      setFetchError(e.message);
+    }
+  }
+
   // For direct docket-nr fetch (unprocessed dockets not yet in DB)
   const [directNr, setDirectNr] = useState('');
   async function handleDirectFetch() {
@@ -470,7 +498,9 @@ export default function DocketsPage() {
       {/* Fetch a new docket */}
       <div style={{
         padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)',
-        background: '#0b1a2e', flexShrink: 0,
+        background: 'rgba(234,179,8,0.04)',
+        borderLeft: '3px solid rgba(234,179,8,0.6)',
+        flexShrink: 0,
       }}>
         <div style={{ fontSize: '11px', fontWeight: 600, color: '#4b6079', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '8px' }}>
           Fetch a docket
@@ -602,6 +632,7 @@ export default function DocketsPage() {
                     onFetch={(d) => handleFetch(d.docket)}
                     onShowSummary={(d) => setSummaryDoc(r)}
                     onAsk={(d) => setAskDoc(r)}
+                    onDelete={(d) => handleDelete(d)}
                   />
                 );
               })}

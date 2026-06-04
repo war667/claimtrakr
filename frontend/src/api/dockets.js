@@ -43,6 +43,10 @@ export function fetchDocket(docketNr) {
   return apiFetch(`/api/v1/dockets/${encodeURIComponent(docketNr)}/fetch`, { method: 'POST' });
 }
 
+export function deleteDocket(docketNr) {
+  return apiFetch(`/api/v1/dockets/${encodeURIComponent(docketNr)}`, { method: 'DELETE' });
+}
+
 export async function streamAskDocket({ docketNr, question, history = [], onChunk, onDone, onError, signal }) {
   let response;
   try {

@@ -152,6 +152,18 @@ async def get_docket(docket_nr: str, db: AsyncSession = Depends(get_db)):
     return _row_to_dict(row)
 
 
+@router.delete("/{docket_nr}")
+async def delete_docket(docket_nr: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        text("DELETE FROM usgs_dockets WHERE docket_nr = :nr RETURNING id"),
+        {"nr": docket_nr},
+    )
+    if not result.fetchone():
+        raise HTTPException(status_code=404, detail="Docket not found")
+    await db.commit()
+    return {"deleted": docket_nr}
+
+
 @router.post("/{docket_nr}/fetch")
 async def fetch_docket(
     docket_nr: str,
