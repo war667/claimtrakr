@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import verify_credentials
 from app.config import settings
-from app.database import get_db
+from app.database import AsyncSessionLocal, get_db
 from app.data.usgs_dockets import ALL_RECORDS, land_hint
 
 logger = logging.getLogger(__name__)
@@ -375,10 +375,99 @@ async def delete_docket(docket_nr: str, db: AsyncSession = Depends(get_db)):
     return {"deleted": docket_nr}
 
 
+async def _bg_fetch_analyze(docket_nr: str, record: dict, pdf_url: str, pdf_path: Path, max_pages: int):
+    """Background task: download PDF, analyze with Claude, write results to DB."""
+    async with AsyncSessionLocal() as db:
+        try:
+            # Download PDF
+            async with httpx.AsyncClient(timeout=180, follow_redirects=True) as client:
+                resp = await client.get(pdf_url)
+                if resp.status_code != 200:
+                    raise ValueError(f"HTTP {resp.status_code} from USGS")
+                pdf_bytes = resp.content
+
+            pdf_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(pdf_path, "wb") as f:
+                f.write(pdf_bytes)
+
+            await db.execute(
+                text("UPDATE usgs_dockets SET status='processing', pdf_path=:p, file_size_bytes=:s, fetched_at=NOW() WHERE docket_nr=:nr"),
+                {"p": str(pdf_path), "s": len(pdf_bytes), "nr": docket_nr},
+            )
+            await db.commit()
+
+            # Build image blocks
+            content_blocks, pages_total = _build_content_blocks(pdf_bytes, max_pages)
+            n_pages = len(content_blocks)
+            truncated = pages_total > n_pages
+            logger.info(f"{docket_nr}: {n_pages}/{pages_total} pages → Claude")
+
+            # Claude analysis
+            import anthropic as _anthropic
+            ai = _anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+            if n_pages <= MAX_BLOCKS_PER_CHUNK:
+                r = await ai.messages.create(
+                    model="claude-sonnet-4-6", max_tokens=4096,
+                    messages=[{"role": "user", "content": content_blocks + [{"type": "text", "text": SUMMARIZE_PROMPT}]}],
+                )
+                summary = r.content[0].text
+            else:
+                chunk_summaries = []
+                for start in range(0, n_pages, MAX_BLOCKS_PER_CHUNK):
+                    chunk = content_blocks[start:start + MAX_BLOCKS_PER_CHUNK]
+                    end = min(start + MAX_BLOCKS_PER_CHUNK, n_pages)
+                    label = f"pages {start + 1}–{end} of {n_pages}"
+                    logger.info(f"  {docket_nr}: chunk {label}")
+                    r = await ai.messages.create(
+                        model="claude-sonnet-4-6", max_tokens=2048,
+                        messages=[{"role": "user", "content": chunk + [{"type": "text", "text": CHUNK_PROMPT + f"\n\n(This is {label}.)"}]}],
+                    )
+                    chunk_summaries.append(f"### {label.title()}\n{r.content[0].text}")
+
+                combined = "\n\n".join(chunk_summaries)
+                synth = await ai.messages.create(
+                    model="claude-sonnet-4-6", max_tokens=4096,
+                    messages=[{"role": "user", "content": [{"type": "text", "text": (
+                        f"Below are partial analyses of a {n_pages}-page USGS mineral exploration "
+                        f"docket. Synthesize into one comprehensive summary.\n\n{combined}\n\n{SUMMARIZE_PROMPT}"
+                    )}]}],
+                )
+                summary = synth.content[0].text
+
+            if truncated:
+                summary += (
+                    f"\n\n---\n⚠ **Partial analysis** — {n_pages} of {pages_total} pages were analyzed. "
+                    f"Use \"Analyze All Pages\" to process the full docket."
+                )
+
+            await db.execute(text("""
+                UPDATE usgs_dockets
+                SET status='ready', summary=:summary, extracted_text=:text,
+                    pages_total=:ptotal, pages_analyzed=:panalyzed, processed_at=NOW()
+                WHERE docket_nr=:nr
+            """), {"summary": summary, "text": summary,
+                   "ptotal": pages_total, "panalyzed": n_pages, "nr": docket_nr})
+            await db.commit()
+            logger.info(f"{docket_nr}: analysis complete")
+
+        except Exception as exc:
+            logger.error(f"{docket_nr}: background fetch failed: {exc}")
+            try:
+                await db.execute(
+                    text("UPDATE usgs_dockets SET status='error', error_msg=:e WHERE docket_nr=:nr"),
+                    {"e": str(exc), "nr": docket_nr},
+                )
+                await db.commit()
+            except Exception:
+                pass
+
+
 @router.post("/{docket_nr}/fetch")
 async def fetch_docket(
     docket_nr: str,
     full: bool = False,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     username: str = Depends(verify_credentials),
     db: AsyncSession = Depends(get_db),
 ):
@@ -389,22 +478,26 @@ async def fetch_docket(
     if not record:
         raise HTTPException(status_code=404, detail=f"Docket {docket_nr} not in dataset")
 
-    pdf_url = _pdf_url(record["state"], docket_nr, record["agency"])
-
-    # Check if already processed
     existing = await db.execute(
         text("SELECT status FROM usgs_dockets WHERE docket_nr = :nr"), {"nr": docket_nr}
     )
     row = existing.fetchone()
+    if row and row[0] in ("downloading", "processing"):
+        raise HTTPException(status_code=409, detail="Already processing — check back shortly.")
     if row and row[0] == "ready" and not full:
-        raise HTTPException(status_code=409, detail="Docket already processed. Use /ask to query it.")
+        raise HTTPException(status_code=409, detail="Already processed. Use /ask to query it.")
 
-    # Upsert with status=downloading
+    pdf_url = _pdf_url(record["state"], docket_nr, record["agency"])
+    pdf_path = PDF_STORE / f"{docket_nr}_{record['agency']}.pdf"
+    max_pages = MAX_PAGES_FULL if full else MAX_PAGES_DEFAULT
+
+    # Upsert with status=downloading then return immediately
     await db.execute(text("""
         INSERT INTO usgs_dockets (docket_nr, agency, state, county, property_name, commodity,
             pdf_url, land_hint, status)
         VALUES (:nr, :agency, :state, :county, :prop, :comm, :url, :hint, 'downloading')
-        ON CONFLICT (docket_nr) DO UPDATE SET status='downloading', error_msg=NULL
+        ON CONFLICT (docket_nr) DO UPDATE SET status='downloading', error_msg=NULL,
+            pages_total=NULL, pages_analyzed=NULL
     """), {
         "nr": docket_nr, "agency": record["agency"], "state": record["state"],
         "county": record["county"], "prop": record["property"], "comm": record["commodity"],
@@ -412,120 +505,10 @@ async def fetch_docket(
     })
     await db.commit()
 
-    # Download PDF
-    PDF_STORE.mkdir(parents=True, exist_ok=True)
-    pdf_path = PDF_STORE / f"{docket_nr}_{record['agency']}.pdf"
-
-    try:
-        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as client:
-            resp = await client.get(pdf_url)
-            if resp.status_code != 200:
-                raise ValueError(f"HTTP {resp.status_code} from USGS")
-            pdf_bytes = resp.content
-    except Exception as exc:
-        await db.execute(
-            text("UPDATE usgs_dockets SET status='error', error_msg=:e WHERE docket_nr=:nr"),
-            {"e": str(exc), "nr": docket_nr}
-        )
-        await db.commit()
-        raise HTTPException(status_code=502, detail=f"Download failed: {exc}")
-
-    # Save to disk
-    with open(pdf_path, "wb") as f:
-        f.write(pdf_bytes)
-
-    await db.execute(
-        text("UPDATE usgs_dockets SET status='processing', pdf_path=:p, file_size_bytes=:s, fetched_at=NOW() WHERE docket_nr=:nr"),
-        {"p": str(pdf_path), "s": len(pdf_bytes), "nr": docket_nr}
-    )
-    await db.commit()
-
-    # Build content blocks — handles both PDF Packages and plain large PDFs
-    max_pages = MAX_PAGES_FULL if full else MAX_PAGES_DEFAULT
-    try:
-        content_blocks, pages_total = _build_content_blocks(pdf_bytes, max_pages)
-    except Exception as exc:
-        await db.execute(
-            text("UPDATE usgs_dockets SET status='error', error_msg=:e WHERE docket_nr=:nr"),
-            {"e": str(exc), "nr": docket_nr}
-        )
-        await db.commit()
-        raise HTTPException(status_code=500, detail=f"PDF extraction failed: {exc}")
-
-    n_pages = len(content_blocks)
-    truncated = pages_total > n_pages
-    logger.info(f"Sending {n_pages}/{pages_total} pages to Claude (chunked={n_pages > MAX_BLOCKS_PER_CHUNK}, truncated={truncated})")
-
-    # Send to Claude — single call for small dockets, chunked+synthesized for large ones
-    try:
-        import anthropic as _anthropic
-        client = _anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-
-        if n_pages <= MAX_BLOCKS_PER_CHUNK:
-            response = await client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=4096,
-                messages=[{"role": "user", "content": content_blocks + [{"type": "text", "text": SUMMARIZE_PROMPT}]}],
-            )
-            summary = response.content[0].text
-        else:
-            # Step 1: partial summary per chunk
-            chunk_summaries = []
-            for start in range(0, n_pages, MAX_BLOCKS_PER_CHUNK):
-                chunk = content_blocks[start:start + MAX_BLOCKS_PER_CHUNK]
-                end = min(start + MAX_BLOCKS_PER_CHUNK, n_pages)
-                label = f"pages {start + 1}–{end} of {n_pages}"
-                logger.info(f"  Chunk {label}")
-                r = await client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=2048,
-                    messages=[{"role": "user", "content": chunk + [{"type": "text", "text": CHUNK_PROMPT + f"\n\n(This is {label}.)"}]}],
-                )
-                chunk_summaries.append(f"### {label.title()}\n{r.content[0].text}")
-
-            # Step 2: synthesize all partial summaries
-            combined = "\n\n".join(chunk_summaries)
-            logger.info(f"  Synthesizing {len(chunk_summaries)} chunks")
-            synth = await client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=4096,
-                messages=[{"role": "user", "content": [{"type": "text", "text": (
-                    f"Below are partial analyses of a {n_pages}-page USGS mineral exploration "
-                    f"docket, broken into chunks of {MAX_BLOCKS_PER_CHUNK} pages each. "
-                    f"Synthesize them into one comprehensive summary.\n\n{combined}\n\n{SUMMARIZE_PROMPT}"
-                )}]}],
-            )
-            summary = synth.content[0].text
-
-        if truncated:
-            summary += (
-                f"\n\n---\n⚠ **Partial analysis** — {n_pages} of {pages_total} pages were analyzed. "
-                f"Use \"Analyze All Pages\" to process the full docket."
-            )
-
-        extracted_text = summary
-
-    except Exception as exc:
-        await db.execute(
-            text("UPDATE usgs_dockets SET status='error', error_msg=:e WHERE docket_nr=:nr"),
-            {"e": str(exc), "nr": docket_nr}
-        )
-        await db.commit()
-        raise HTTPException(status_code=500, detail=f"Claude processing failed: {exc}")
-
-    # Store results
-    await db.execute(text("""
-        UPDATE usgs_dockets
-        SET status='ready', summary=:summary, extracted_text=:text,
-            pages_total=:ptotal, pages_analyzed=:panalyzed, processed_at=NOW()
-        WHERE docket_nr=:nr
-    """), {"summary": summary, "text": extracted_text,
-           "ptotal": pages_total, "panalyzed": n_pages, "nr": docket_nr})
-    await db.commit()
+    background_tasks.add_task(_bg_fetch_analyze, docket_nr, record, pdf_url, pdf_path, max_pages)
 
     result = await db.execute(
-        text(f"SELECT {SELECT_COLS} FROM usgs_dockets WHERE docket_nr = :nr"),
-        {"nr": docket_nr}
+        text(f"SELECT {SELECT_COLS} FROM usgs_dockets WHERE docket_nr = :nr"), {"nr": docket_nr}
     )
     return _row_to_dict(result.fetchone())
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { listDockets, fetchDocket, deleteDocket, openDocketPdf, streamAskDocket } from '../api/dockets';
+import { listDockets, getDocket, fetchDocket, deleteDocket, openDocketPdf, streamAskDocket } from '../api/dockets';
 
 // ---------------------------------------------------------------------------
 // Static dataset for browsing (client-side) — mirrors backend ALL_RECORDS
@@ -487,8 +487,28 @@ export default function DocketsPage() {
     setFetching(docNr);
     setFetchError('');
     try {
-      const result = await fetchDocket(docNr, { full });
-      setDbRecords((prev) => ({ ...prev, [result.docket_nr]: result }));
+      // Kick off background analysis — returns immediately with 'downloading' status
+      const initial = await fetchDocket(docNr, { full });
+      setDbRecords((prev) => ({ ...prev, [initial.docket_nr]: initial }));
+
+      // Poll every 5 s until ready or error
+      await new Promise((resolve) => {
+        const iv = setInterval(async () => {
+          try {
+            const rec = await getDocket(docNr);
+            setDbRecords((prev) => ({ ...prev, [rec.docket_nr]: rec }));
+            if (rec.status === 'ready' || rec.status === 'error') {
+              clearInterval(iv);
+              if (rec.status === 'error') setFetchError(rec.error_msg || 'Processing failed');
+              resolve();
+            }
+          } catch (e) {
+            clearInterval(iv);
+            setFetchError(e.message);
+            resolve();
+          }
+        }, 5000);
+      });
     } catch (e) {
       setFetchError(e.message);
     } finally {
