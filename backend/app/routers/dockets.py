@@ -116,20 +116,35 @@ def _image_block(data: bytes, fmt: str) -> dict | None:
     }
 
 
-def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], bool]:
+def _pages_to_pdf(pdf_bytes: bytes, max_pages: int = 5) -> bytes:
+    """Extract first N pages from a PDF as a new valid PDF document."""
+    from pypdf import PdfReader, PdfWriter
+    reader = PdfReader(BytesIO(pdf_bytes))
+    writer = PdfWriter()
+    n = min(max_pages, len(reader.pages))
+    for i in range(n):
+        writer.add_page(reader.pages[i])
+    buf = BytesIO()
+    writer.write(buf)
+    result = buf.getvalue()
+    logger.info(f"Extracted {n}/{len(reader.pages)} pages → {len(result)} bytes")
+    return result
+
+
+def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], str]:
     """
     Build Claude content blocks from a downloaded PDF.
-    If it's a PDF Package, extract embedded files (TIFF/JPEG scans) as image blocks.
-    Returns (blocks, is_package).
+    Strategy 1: PDF Package → extract embedded image files (TIFF/JPEG scans).
+    Strategy 2: Any PDF → extract first 5 pages as a valid sub-PDF.
+    Returns (blocks, note).
     """
-    try:
-        from pypdf import PdfReader
-        reader = PdfReader(BytesIO(pdf_bytes))
-        attachments = reader.attachments
-        if not attachments:
-            return None, False  # plain PDF — caller handles
+    from pypdf import PdfReader
+    reader = PdfReader(BytesIO(pdf_bytes))
 
-        logger.info(f"PDF Package: {len(attachments)} embedded files found")
+    # --- Strategy 1: PDF Package with embedded files ---
+    attachments = reader.attachments
+    if attachments:
+        logger.info(f"PDF Package: {len(attachments)} embedded files")
         blocks: list[dict] = []
         total_raw = 0
         done = False
@@ -140,17 +155,15 @@ def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], bool]:
                 if not raw or len(raw) < 8:
                     continue
                 fmt = _detect_fmt(raw)
-                logger.info(f"  Embedded file '{_name}': {len(raw)} bytes, fmt={fmt}")
-                if fmt == 'pdf':
-                    if len(raw) <= MAX_PDF_BYTES:
-                        blk = {
-                            "type": "document",
-                            "source": {"type": "base64", "media_type": "application/pdf",
-                                       "data": base64.standard_b64encode(raw).decode()},
-                        }
-                        blocks.append(blk)
-                        total_raw += len(raw)
-                else:
+                logger.info(f"  '{_name}': {len(raw)} bytes fmt={fmt}")
+                if fmt == 'pdf' and len(raw) <= MAX_PDF_BYTES:
+                    blocks.append({
+                        "type": "document",
+                        "source": {"type": "base64", "media_type": "application/pdf",
+                                   "data": base64.standard_b64encode(raw).decode()},
+                    })
+                    total_raw += len(raw)
+                elif fmt != 'pdf':
                     blk = _image_block(raw, fmt)
                     if blk:
                         img_raw = len(base64.b64decode(blk["source"]["data"]))
@@ -163,14 +176,22 @@ def _build_content_blocks(pdf_bytes: bytes) -> tuple[list[dict], bool]:
                     done = True
                     break
 
-        logger.info(f"PDF Package: built {len(blocks)} blocks, {total_raw} raw bytes")
+        logger.info(f"Package blocks: {len(blocks)}, {total_raw} raw bytes")
         if blocks:
-            return blocks, True
-        # Package found but no blocks extracted — raise so caller surfaces the error
-        raise ValueError(f"PDF Package has {len(attachments)} files but none could be processed")
-    except Exception as exc:
-        logger.warning(f"PDF package extraction failed: {exc}")
-    return None, False
+            note = f"(PDF Package — first {len(blocks)} pages analyzed)" if len(blocks) >= MAX_IMAGE_BLOCKS else ""
+            return blocks, note
+
+    # --- Strategy 2: Extract first N pages as a valid PDF ---
+    n_pages = len(reader.pages)
+    logger.info(f"Plain PDF: {n_pages} pages, extracting first 5")
+    page_pdf = _pages_to_pdf(pdf_bytes, max_pages=5)
+    note = f"(Large PDF — only first 5 of {n_pages} pages analyzed)" if n_pages > 5 else ""
+    return [{
+        "type": "document",
+        "source": {"type": "base64", "media_type": "application/pdf",
+                   "data": base64.standard_b64encode(page_pdf).decode()},
+        "cache_control": {"type": "ephemeral"},
+    }], note
 
 
 def _row_to_dict(r) -> dict:
@@ -307,29 +328,18 @@ async def fetch_docket(
     )
     await db.commit()
 
-    # Build content blocks — handle PDF Package (embedded TIFF/JPEG scans)
-    content_blocks, is_package = _build_content_blocks(pdf_bytes)
+    # Build content blocks — handles both PDF Packages and plain large PDFs
+    try:
+        content_blocks, page_note = _build_content_blocks(pdf_bytes)
+    except Exception as exc:
+        await db.execute(
+            text("UPDATE usgs_dockets SET status='error', error_msg=:e WHERE docket_nr=:nr"),
+            {"e": str(exc), "nr": docket_nr}
+        )
+        await db.commit()
+        raise HTTPException(status_code=500, detail=f"PDF extraction failed: {exc}")
 
-    truncated = False
-    if not is_package:
-        # Plain PDF — truncate if needed, send as document
-        process_bytes = pdf_bytes
-        if len(pdf_bytes) > MAX_PDF_BYTES:
-            process_bytes = pdf_bytes[:MAX_PDF_BYTES]
-            truncated = True
-        content_blocks = [{
-            "type": "document",
-            "source": {"type": "base64", "media_type": "application/pdf",
-                       "data": base64.standard_b64encode(process_bytes).decode()},
-            "cache_control": {"type": "ephemeral"},
-        }]
-
-    note = ""
-    if truncated:
-        note = (f"\n\nNote: PDF is {len(pdf_bytes) // (1024*1024)} MB; "
-                f"only the first {MAX_PDF_BYTES // (1024*1024)} MB were processed.")
-    elif is_package and len(content_blocks) >= MAX_IMAGE_BLOCKS:
-        note = f"\n\nNote: PDF Package contained many pages; only the first {MAX_IMAGE_BLOCKS} were analyzed."
+    note = f"\n\nNote: {page_note}" if page_note else ""
 
     # Send to Claude
     try:
