@@ -72,8 +72,8 @@ def _find_record(docket_nr: str) -> Optional[dict]:
     return None
 
 
-MAX_IMAGE_BLOCKS = 5
-MAX_TOTAL_RAW_BYTES = 1_200_000  # 1.2 MB raw → ~1.6 MB base64
+MAX_IMAGE_BLOCKS = 12
+MAX_TOTAL_RAW_BYTES = 3_500_000  # 3.5 MB raw → ~4.7 MB base64, well under API limit
 
 def _detect_fmt(data: bytes) -> str:
     if data[:4] == b'%PDF':
@@ -94,13 +94,13 @@ def _image_block(data: bytes, fmt: str) -> dict | None:
         img = Image.open(BytesIO(data))
         logger.info(f"Image: mode={img.mode} size={img.size} fmt={fmt}")
         w, h = img.size
-        if max(w, h) > 1000:
-            ratio = 1000 / max(w, h)
+        if max(w, h) > 1200:
+            ratio = 1200 / max(w, h)
             img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
         if img.mode not in ('RGB',):
             img = img.convert('RGB')
         buf = BytesIO()
-        img.save(buf, format='JPEG', quality=70, optimize=True)
+        img.save(buf, format='JPEG', quality=75, optimize=True)
         jpeg_bytes = buf.getvalue()
         logger.info(f"Compressed to {len(jpeg_bytes)} bytes JPEG")
     except Exception as exc:
