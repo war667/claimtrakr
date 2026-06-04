@@ -18,6 +18,9 @@ services:
 
   backend:
     build: ./backend
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER}
