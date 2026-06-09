@@ -51,7 +51,7 @@ services:
         VITE_AUTH_PASS: ${VITE_AUTH_PASS}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.claimtrakr.rule=Host(`claimtrackr.com`)"
+      - "traefik.http.routers.claimtrakr.rule=Host(`claimtrakr.com`)"
       - "traefik.http.routers.claimtrakr.entrypoints=websecure"
       - "traefik.http.routers.claimtrakr.tls=true"
       - "traefik.http.routers.claimtrakr.tls.certresolver=letsencrypt"
