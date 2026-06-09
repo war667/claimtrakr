@@ -50,9 +50,10 @@ services:
         VITE_AUTH_USER: ${VITE_AUTH_USER:-admin}
         VITE_AUTH_PASS: ${VITE_AUTH_PASS}
     ports:
-      - "8084:80"
+      - "443:443"
     volumes:
       - ./logs/nginx:/var/log/nginx
+      - /etc/ssl/cloudflare:/etc/ssl/cloudflare:ro
     depends_on:
       - backend
     restart: unless-stopped
