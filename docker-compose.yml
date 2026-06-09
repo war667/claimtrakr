@@ -49,11 +49,15 @@ services:
         VITE_API_URL: ${VITE_API_URL}
         VITE_AUTH_USER: ${VITE_AUTH_USER:-admin}
         VITE_AUTH_PASS: ${VITE_AUTH_PASS}
-    ports:
-      - "443:443"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.claimtrakr.rule=Host(`claimtrackr.com`)"
+      - "traefik.http.routers.claimtrakr.entrypoints=websecure"
+      - "traefik.http.routers.claimtrakr.tls=true"
+      - "traefik.http.routers.claimtrakr.tls.certresolver=letsencrypt"
+      - "traefik.http.services.claimtrakr.loadbalancer.server.port=80"
     volumes:
       - ./logs/nginx:/var/log/nginx
-      - /etc/ssl/cloudflare:/etc/ssl/cloudflare:ro
     depends_on:
       - backend
     restart: unless-stopped
